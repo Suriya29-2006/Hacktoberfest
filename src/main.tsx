@@ -1,752 +1,3494 @@
-import React,{useEffect,useState,useCallback} from 'react';
-import {createRoot} from 'react-dom/client';
-import {BrowserRouter} from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import {
-  Activity,AlertTriangle,ArrowRight,CalendarDays,Check,ChevronRight,
-  ClipboardList,Clock3,Edit2,FileCheck2,FileText,FlaskConical,HeartPulse,
-  LayoutDashboard,LogOut,Menu,Plus,RefreshCw,Search,ShieldCheck,Stethoscope,
-  TestTube2,UserPlus,Users,X,Ban,Calendar,Phone,Mail,AlertCircle,
-  UserCheck,CheckCircle2,ClockIcon,Pencil
+  Activity, AlertTriangle, ArrowRight, CalendarDays, Check, ChevronRight,
+  ClipboardList, Clock3, Edit2, FileText, FlaskConical, HeartPulse,
+  LayoutDashboard, LogOut, Menu, Plus, RefreshCw, Search, ShieldCheck, Stethoscope,
+  TestTube2, Users, X, Ban, Calendar, Phone, Mail, AlertCircle,
+  UserCheck, CheckCircle2, ClockIcon, Pencil, Printer, Trash2, Sliders, ExternalLink
 } from 'lucide-react';
-import {api} from './api';
-import type {AdminPatientRecord,Appointment,AppointmentStatus,Dashboard,Doctor,LabOrder,Patient,PatientRecord,Role,TimelineEvent,User} from './types';
+import { api } from './api';
+import type {
+  Allergy, Appointment, CarePlan, ClinicalProblem, Dashboard,
+  Doctor, LabOrder, Patient, PatientRecord, Prescription, Referral, User, VitalSign
+} from './types';
 import './styles.css';
 
-const roleLabels:Record<Role,string>={receptionist:'Reception',lab:'Laboratory',doctor:'Doctor'};
-const demoAccounts=[
-  {role:'receptionist' as Role,email:'reception@careweave.test',password:'demo123',name:'Maya Patel'},
-  {role:'lab' as Role,email:'lab@careweave.test',password:'demo123',name:'Jordan Lee'},
-  {role:'doctor' as Role,email:'doctor@careweave.test',password:'demo123',name:'Dr. Amara Singh'}
-];
-const fmtDate=(v?:string)=>v?new Date(v).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'—';
-const fmtDateTime=(v?:string)=>v?new Date(v).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'—';
-const initials=(n:string)=>n.split(' ').map(v=>v[0]).slice(0,2).join('').toUpperCase();
-const todayISO=()=>new Date().toISOString().slice(0,10);
-function waitDuration(checkedInAt?:string):string{
-  if(!checkedInAt)return '—';
-  const ms=Date.now()-new Date(checkedInAt).getTime();
-  const mins=Math.floor(ms/60000);
-  if(mins<1)return '<1 min';
-  if(mins<60)return `${mins} min`;
-  return `${Math.floor(mins/60)}h ${mins%60}m`;
+const fmtDate = (v?: string) => v ? new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+const fmtDateTime = (v?: string) => v ? new Date(v).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—';
+const initials = (n: string) => n.split(' ').map(v => v[0]).slice(0, 2).join('').toUpperCase();
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function waitDuration(checkedInAt?: string): string {
+  if (!checkedInAt) return '—';
+  const ms = Date.now() - new Date(checkedInAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return '<1 min';
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
 // ─── APP SHELL ─────────────────────────────────────────────────────────────
-function App(){
-  const [user,setUser]=useState<User|null>(null),[loading,setLoading]=useState(true);
-  useEffect(()=>{
-    if(localStorage.getItem('cw_token'))api.me().then(setUser).catch(()=>localStorage.removeItem('cw_token')).finally(()=>setLoading(false));
-    else setLoading(false);
-  },[]);
-  if(loading)return <div className="splash"><div className="brand-mark"><HeartPulse size={28}/></div><strong>CareWeave</strong><span>Loading secure workspace…</span></div>;
-  return user?<Workspace user={user} onLogout={()=>{localStorage.removeItem('cw_token');setUser(null)}}/>:<Login onLogin={setUser}/>;
-}
+function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-// ─── LOGIN ──────────────────────────────────────────────────────────────────
-function Login({onLogin}:{onLogin:(u:User)=>void}){
-  const [email,setEmail]=useState(demoAccounts[0].email),[password,setPassword]=useState('demo123'),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const r=await api.login(email,password);localStorage.setItem('cw_token',r.token);onLogin(r.user)}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
-  return <div className="login-page">
-    <div className="login-visual">
-      <div className="visual-top"><div className="brand"><div className="brand-mark"><HeartPulse size={22}/></div><span>CareWeave</span></div><span className="pill subtle">Synthetic demo environment</span></div>
-      <div className="visual-copy">
-        <p className="eyebrow">UNIFIED PATIENT HEALTH RECORDS</p>
-        <h1>One connected story.<br/><em>Every authorized handoff.</em></h1>
-        <p>CareWeave reconciles fragmented records into a traceable, permission-aware health timeline for the people who care for patients.</p>
-        <div className="visual-proof"><div><ShieldCheck size={18}/>Server-side access control</div><div><Activity size={18}/>Evidence-linked timeline</div><div><RefreshCw size={18}/>Review before reconciliation</div></div>
+  useEffect(() => {
+    if (localStorage.getItem('cw_token')) {
+      api.me().then(setUser).catch(() => localStorage.removeItem('cw_token')).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="splash">
+        <div className="brand-mark"><HeartPulse size={28} /></div>
+        <strong>CareWeave Clinical EHR</strong>
+        <span>Loading physician workspace…</span>
       </div>
-      <div className="visual-footer"><span>CAREWEAVE RECORD INTELLIGENCE</span><span>v1.0 demo</span></div>
-    </div>
-    <div className="login-panel">
-      <div className="login-card">
-        <div className="mobile-brand"><div className="brand-mark"><HeartPulse size={22}/></div><b>CareWeave</b></div>
-        <p className="eyebrow">SECURE WORKSPACE</p><h2>Welcome back</h2>
-        <p className="muted">Sign in to continue to your role-specific portal.</p>
-        <form onSubmit={submit}>
-          <label>Email address<input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/></label>
-          <label>Password<input value={password} onChange={e=>setPassword(e.target.value)} type="password" required/></label>
-          {error&&<div className="alert danger"><AlertTriangle size={16}/>{error}</div>}
-          <button className="primary wide" disabled={busy}>{busy?'Signing in…':'Sign in securely'}<ArrowRight size={17}/></button>
-        </form>
-        <div className="demo-box">
-          <div className="demo-head"><span>Demo accounts</span><span className="tiny">password: demo123</span></div>
-          {demoAccounts.map(a=><button className="demo-account" key={a.role} onClick={()=>{setEmail(a.email);setPassword(a.password)}}><span className={`role-dot ${a.role}`}></span><span><b>{roleLabels[a.role]}</b><small>{a.name}</small></span><ChevronRight size={16}/></button>)}
-        </div>
-      </div>
-      <div className="login-note"><ShieldCheck size={15}/> No real patient data. All records are synthetic for demonstration.</div>
-    </div>
-  </div>;
-}
-
-// ─── WORKSPACE ──────────────────────────────────────────────────────────────
-function Workspace({user,onLogout}:{user:User;onLogout:()=>void}){
-  const [section,setSection]=useState('overview'),[collapsed,setCollapsed]=useState(false),[refresh,setRefresh]=useState(0),[toast,setToast]=useState('');
-  const nav:any[]=user.role==='receptionist'
-    ?[['overview','Overview',LayoutDashboard],['patients','Patients',Users],['appointments','Appointments',CalendarDays],['queue','Patient Queue',Clock3]]
-    :user.role==='lab'
-    ?[['overview','Overview',LayoutDashboard],['orders','Test orders',TestTube2],['samples','Sample tracking',FlaskConical],['verification','Verification queue',FileCheck2]]
-    :[['overview','Overview',LayoutDashboard],['appointments','Appointments',CalendarDays],['records','Patient records',Users],['timeline','Health timeline',Activity],['labs','Lab results',FlaskConical],['consultations','Consultations',ClipboardList],['prescriptions','Prescriptions',FileText],['reconciliation','External record review',RefreshCw]];
-  const notify=(s:string)=>{setToast(s);setTimeout(()=>setToast(''),3500)};
-  return <div className={`app-shell ${collapsed?'nav-collapsed':''}`}>
-    <aside className="sidebar">
-      <div className="side-brand"><div className="brand-mark"><HeartPulse size={21}/></div><span>CareWeave</span></div>
-      <div className="workspace-switch">
-        <span className={`role-dot ${user.role}`}></span>
-        <div><b>{roleLabels[user.role]} portal</b><small>CareWeave Health</small></div>
-        <ChevronRight size={15}/>
-      </div>
-      <nav>{nav.map((n:any)=>{const [navId,label,Icon]=n;return <button className={section===navId?'active':''} key={navId} onClick={()=>setSection(navId)}><Icon size={18}/><span>{label}</span>{navId==='verification'&&<span className="nav-count">3</span>}</button>})}</nav>
-      <div className="side-bottom">
-        <div className="privacy-card"><ShieldCheck size={16}/><span>Least-privilege access<br/><small>Audit logging enabled</small></span></div>
-        <div className="side-user-chip">
-          <div className="avatar small">{initials(user.name)}</div>
-          <div><b>{user.name}</b><small>{user.facility}</small></div>
-        </div>
-        <button className="logout" onClick={onLogout}><LogOut size={17}/><span>Sign out</span></button>
-      </div>
-    </aside>
-    <main className="main">
-      <header className="topbar">
-        <button className="icon-button menu-button" onClick={()=>setCollapsed(!collapsed)}><Menu size={20}/></button>
-        <div className="breadcrumb"><span>{roleLabels[user.role]}</span><ChevronRight size={14}/><b>{nav.find(n=>n[0]===section)?.[1]}</b></div>
-        <div className="top-actions">
-          <button className="icon-button" onClick={()=>{setRefresh(v=>v+1);notify('Workspace refreshed')}}><RefreshCw size={17}/></button>
-          <div className="user-chip"><div className="avatar">{initials(user.name)}</div><span><b>{user.name}</b><small>{user.facility}</small></span></div>
-        </div>
-      </header>
-      <div className="content">
-        {section==='overview'&&<Overview user={user} refresh={refresh} go={setSection} notify={notify}/>}
-        {section==='patients'&&<Patients user={user} notify={notify} go={setSection}/>}
-        {section==='appointments'&&<Appointments user={user} notify={notify}/>}
-        {section==='queue'&&<Queue notify={notify}/>}
-        {section==='orders'&&<LabOrders mode="orders" notify={notify}/>}
-        {section==='samples'&&<LabOrders mode="samples" notify={notify}/>}
-        {section==='verification'&&<LabOrders mode="verification" notify={notify}/>}
-        {['records','timeline','labs','consultations','prescriptions'].includes(section)&&<DoctorRecords initialTab={section} notify={notify}/>}
-        {section==='reconciliation'&&<Reconciliation notify={notify}/>}
-      </div>
-    </main>
-    {toast&&<div className="toast"><Check size={16}/>{toast}</div>}
-  </div>;
-}
-
-// ─── SHARED COMPONENTS ──────────────────────────────────────────────────────
-function PageHeader({eyebrow,title,sub,action}:{eyebrow:string;title:string;sub:string;action?:React.ReactNode}){
-  return <div className="page-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="muted">{sub}</p></div>{action}</div>;
-}
-function StatCard({label,value,delta,icon,tone='teal'}:{label:string;value:string|number;delta?:string;icon:React.ReactNode;tone?:string}){
-  return <div className="stat-card"><div className={`stat-icon ${tone}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong>{delta&&<small className="positive">{delta}</small>}</div></div>;
-}
-function StatusBadge({status}:{status:string}){
-  return <span className={`status ${status.toLowerCase().replaceAll(' ','-')}`}>{status}</span>;
-}
-function Loading(){return <div className="loading-card"><RefreshCw className="spin" size={20}/> Loading connected records…</div>;}
-function Modal({title,sub,onClose,children}:{title:string;sub?:string;onClose:()=>void;children:React.ReactNode}){
-  return <div className="modal-backdrop" onClick={onClose}>
-    <div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="modal-head"><div><h2>{title}</h2><p className="muted">{sub||'Changes are persisted and audit logged.'}</p></div><button className="icon-button" onClick={onClose}><X size={18}/></button></div>
-      {children}
-    </div>
-  </div>;
-}
-
-// ─── RECEPTIONIST: OVERVIEW ─────────────────────────────────────────────────
-function Overview({user,refresh,go,notify}:{user:User;refresh:number;go:(s:string)=>void;notify:(s:string)=>void}){
-  const [data,setData]=useState<Dashboard|null>(null);
-  useEffect(()=>{api.dashboard().then(setData).catch(e=>notify(e.message))},[refresh]);
-  if(!data)return <Loading/>;
-  const s=data.stats;
-  return <>
-    <PageHeader
-      eyebrow={`${roleLabels[user.role]} workspace`}
-      title={`Good morning, ${user.name.split(' ')[0]}.`}
-      sub="Here is the connected care picture for today."
-      action={user.role==='receptionist'
-        ?<div className="header-actions"><button className="secondary" onClick={()=>go('appointments')}><CalendarDays size={17}/>View schedule</button><button className="primary" onClick={()=>go('patients')}><UserPlus size={17}/>Register patient</button></div>
-        :user.role==='doctor'?<button className="primary" onClick={()=>go('records')}><Search size={17}/>Find a patient</button>
-        :<button className="primary" onClick={()=>go('orders')}><TestTube2 size={17}/>View test orders</button>}
-    />
-    <div className="stat-grid">
-      {user.role==='receptionist'?<>
-        <StatCard label="Registered patients" value={s.patients} delta="+8% this month" icon={<Users size={20}/>}/>
-        <StatCard label="Today's appointments" value={s.appointments} icon={<CalendarDays size={20}/>} tone="blue"/>
-        <StatCard label="Waiting / Checked In" value={s.waiting} icon={<Clock3 size={20}/>} tone="amber"/>
-        <StatCard label="Completed today" value={s.todayCompleted||0} icon={<CheckCircle2 size={20}/>} tone="green"/>
-      </>:user.role==='lab'?<>
-        <StatCard label="Incoming requests" value={s.requested} icon={<TestTube2 size={20}/>}/>
-        <StatCard label="In processing" value={s.processing} icon={<FlaskConical size={20}/>} tone="blue"/>
-        <StatCard label="Awaiting verification" value={s.awaitingVerification} icon={<FileCheck2 size={20}/>} tone="amber"/>
-        <StatCard label="Released today" value={s.released} icon={<Check size={20}/>} tone="green"/>
-      </>:<>
-        <StatCard label="Assigned today" value={s.appointments} icon={<CalendarDays size={20}/>}/>
-        <StatCard label="Patients waiting" value={s.waiting} icon={<Clock3 size={20}/>} tone="amber"/>
-        <StatCard label="Labs to review" value={s.released} icon={<FlaskConical size={20}/>} tone="blue"/>
-        <StatCard label="Follow-ups" value={s.followups} icon={<RefreshCw size={20}/>} tone="green"/>
-      </>}
-    </div>
-
-    {user.role==='receptionist'
-      ?<ReceptionistDashboardBody data={data} go={go} notify={notify}/>
-      :<GenericDashboardBody data={data} user={user} go={go}/>}
-  </>;
-}
-
-function ReceptionistDashboardBody({data,go,notify}:{data:Dashboard;go:(s:string)=>void;notify:(s:string)=>void}){
-  const today=data.appointments;
-  const waiting=today.filter(a=>['Waiting','Checked In','Checked in'].includes(a.status));
-  const handleCheckIn=async(a:Appointment)=>{
-    try{await api.updateAppointment(a.id,{status:'Checked In'});notify(`${a.patientName} checked in successfully`);go('queue');}catch(e){notify((e as Error).message);}
-  };
-  return <div className="dashboard-grid">
-    <div className="card">
-      <div className="card-head">
-        <div><h3>Today's appointment schedule</h3><p className="muted">Live from the shared CareWeave record · {new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</p></div>
-        <button className="text-button" onClick={()=>go('appointments')}>View all <ArrowRight size={15}/></button>
-      </div>
-      <div className="list">
-        {today.length===0&&<div className="empty"><CalendarDays size={28}/><b>No appointments today</b><span>Use the schedule to add appointments.</span></div>}
-        {today.map(a=><div className="list-row" key={a.id}>
-          <div className="time-block"><b>{a.time}</b><small>{a.status}</small></div>
-          <div className="avatar small">{initials(a.patientName)}</div>
-          <div className="row-main"><b>{a.patientName}</b><span>{a.reason}</span></div>
-          <StatusBadge status={a.status}/>
-          {a.status==='Scheduled'&&<button className="secondary small-btn" onClick={()=>handleCheckIn(a)}><UserCheck size={14}/>Check in</button>}
-        </div>)}
-      </div>
-    </div>
-    <div className="card">
-      <div className="card-head"><div><h3>Current waiting queue</h3><p className="muted">{waiting.length} patient{waiting.length!==1?'s':''} waiting</p></div><button className="text-button" onClick={()=>go('queue')}>Full queue <ArrowRight size={15}/></button></div>
-      {waiting.length===0
-        ?<div className="empty" style={{padding:'30px 0'}}><ClockIcon size={24}/><b>Queue is clear</b><span>No patients currently waiting.</span></div>
-        :<div>{waiting.map((a,i)=><div className="queue-row" key={a.id}>
-          <span className="queue-number">{String(i+1).padStart(2,'0')}</span>
-          <div className="avatar small">{initials(a.patientName)}</div>
-          <div className="row-main"><b>{a.patientName}</b><span>{waitDuration(a.checkedInAt)} waiting</span></div>
-          <StatusBadge status={a.status}/>
-        </div>)}
-        </div>}
-      <div className="card-divider"/>
-      <div className="card-head" style={{marginBottom:0,marginTop:12}}><div><h3>Recent activity</h3><p className="muted">Audit log events</p></div></div>
-      <div className="recent-activity">
-        {data.recent.slice(0,5).map((r:any)=><div className="activity-row" key={r.id}>
-          <div className={`activity-dot ${r.action}`}></div>
-          <div><b>{r.action} {r.entity}</b><small>{new Date(r.timestamp).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})} · {r.actorRole}</small></div>
-        </div>)}
-        {data.recent.length===0&&<p className="muted" style={{fontSize:11,textAlign:'center',padding:'12px 0'}}>No recent activity recorded.</p>}
-      </div>
-    </div>
-  </div>;
-}
-
-function GenericDashboardBody({data,user,go}:{data:Dashboard;user:User;go:(s:string)=>void}){
-  return <div className="dashboard-grid">
-    <div className="card">
-      <div className="card-head">
-        <div><h3>{user.role==='lab'?'Active laboratory workflow':user.role==='doctor'?"Today's care queue":'Upcoming appointments'}</h3><p className="muted">Live from the shared CareWeave record</p></div>
-        <button className="text-button" onClick={()=>go(user.role==='lab'?'orders':'appointments')}>View all <ArrowRight size={15}/></button>
-      </div>
-      <div className="list">{data.appointments.slice(0,4).map(a=><div className="list-row" key={a.id}><div className="time-block"><b>{a.time}</b><small>{a.status}</small></div><div className="row-main"><b>{a.patientName}</b><span>{a.reason}</span></div><StatusBadge status={a.status}/></div>)}</div>
-    </div>
-    <div className="card intelligence-card">
-      <div className="card-head"><div><h3>Record Intelligence</h3><p className="muted">Traceable reconciliation signals</p></div><div className="spark"><Activity size={17}/></div></div>
-      <div className="intel-metric"><strong>{data.cases.length}</strong><span>open review cases</span></div>
-      <div className="intel-items">{data.cases.slice(0,3).map(c=><div key={c.id}><span className={`signal ${c.type}`}></span><span><b>{c.title}</b><small>{c.detail}</small></span><ChevronRight size={15}/></div>)}</div>
-      <button className="secondary wide" onClick={()=>go(user.role==='doctor'?'reconciliation':'overview')}>Review reconciliation queue</button>
-    </div>
-  </div>;
-}
-
-// ─── RECEPTIONIST: PATIENTS ──────────────────────────────────────────────────
-function Patients({user,notify,go}:{user:User;notify:(s:string)=>void;go:(s:string)=>void}){
-  const [patients,setPatients]=useState<Patient[]>([]);
-  const [q,setQ]=useState('');
-  const [showRegister,setShowRegister]=useState(false);
-  const [selected,setSelected]=useState<Patient|null>(null);
-  const [editPatient,setEditPatient]=useState<Patient|null>(null);
-  const [bookApptFor,setBookApptFor]=useState<Patient|null>(null);
-
-  const load=useCallback(()=>api.patients(q).then(setPatients).catch(e=>notify(e.message)),[q]);
-  useEffect(()=>{load()},[load]);
-
-  return <>
-    <PageHeader
-      eyebrow="Patient administration"
-      title="Patients"
-      sub={user.role==='receptionist'?'Register, search, and connect patients to appointments.':'Search an authorized patient record and open their connected timeline.'}
-      action={user.role==='receptionist'?<button className="primary" onClick={()=>setShowRegister(true)}><Plus size={17}/>New patient</button>:undefined}
-    />
-    <div className="toolbar">
-      <div className="search"><Search size={17}/><input placeholder="Search by patient ID, name, or phone" value={q} onChange={e=>setQ(e.target.value)}/></div>
-      <span className="muted">{patients.length} authorized record{patients.length!==1?'s':''}</span>
-    </div>
-    <div className="card table-card">
-      <table>
-        <thead><tr><th>Patient</th><th>Patient ID</th><th>Date of birth</th><th>Contact</th><th>Registered</th><th>Actions</th></tr></thead>
-        <tbody>{patients.map(p=><tr key={p.id}>
-          <td><div className="person"><div className="avatar small">{initials(p.name)}</div><div><b>{p.name}</b><small>{p.risk||'Standard access scope'}</small></div></div></td>
-          <td><span className="mono">{p.patientId}</span></td>
-          <td>{fmtDate(p.dob)}</td>
-          <td>{p.phone}</td>
-          <td>{fmtDate(p.createdAt)}</td>
-          <td>
-            <div className="row-actions">
-              <button className="icon-button" title="View profile" onClick={()=>setSelected(p)}><ChevronRight size={17}/></button>
-              {user.role==='receptionist'&&<>
-                <button className="icon-button" title="Edit demographics" onClick={()=>setEditPatient(p)}><Pencil size={15}/></button>
-                <button className="secondary small-btn" onClick={()=>setBookApptFor(p)}><CalendarDays size={14}/>Book</button>
-              </>}
-            </div>
-          </td>
-        </tr>)}
-        </tbody>
-      </table>
-      {patients.length===0&&<div className="empty"><Users size={28}/><b>No patients found</b><span>Try a different search or register a new patient.</span></div>}
-    </div>
-
-    {showRegister&&<PatientRegistrationModal onClose={()=>setShowRegister(false)} onSaved={p=>{setShowRegister(false);setPatients([p,...patients]);notify('Patient registered with a new CareWeave ID')}} onBookAppt={p=>{setShowRegister(false);setBookApptFor(p)}}/>}
-    {selected&&<PatientDrawer patient={selected} onClose={()=>setSelected(null)} full={user.role==='doctor'} onBookAppt={user.role==='receptionist'?p=>{setSelected(null);setBookApptFor(p)}:undefined}/>}
-    {editPatient&&<EditPatientModal patient={editPatient} onClose={()=>setEditPatient(null)} onSaved={updated=>{setEditPatient(null);setPatients(prev=>prev.map(p=>p.id===updated.id?updated:p));notify('Patient record updated')}}/>}
-    {bookApptFor&&<AppointmentModal patient={bookApptFor} onClose={()=>setBookApptFor(null)} onSaved={()=>{setBookApptFor(null);notify('Appointment created successfully');go('appointments')}}/>}
-  </>;
-}
-
-// ─── PATIENT REGISTRATION MODAL ──────────────────────────────────────────────
-function PatientRegistrationModal({onClose,onSaved,onBookAppt}:{onClose:()=>void;onSaved:(p:Patient)=>void;onBookAppt:(p:Patient)=>void}){
-  const [form,setForm]=useState({name:'',dob:'',phone:'',email:'',emergencyContact:''});
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[duplicates,setDuplicates]=useState<Patient[]>([]);
-  const f=(k:string)=>(e:React.ChangeEvent<HTMLInputElement>)=>setForm({...form,[k]:e.target.value});
-  const submit=async(e:React.FormEvent)=>{
-    e.preventDefault();setBusy(true);setError('');setDuplicates([]);
-    try{onSaved(await api.createPatient(form));}
-    catch(err:any){
-      if(err.message?.includes('Possible duplicate')){
-        // Parse duplicates from the extended error — re-fetch to get structured data
-        try{
-          const matches=await api.patients(form.name);
-          const likely=matches.filter(p=>p.dob===form.dob);
-          if(likely.length>0){setDuplicates(likely);setBusy(false);return;}
-        }catch{}
-      }
-      setError(err.message);
-    }finally{setBusy(false);}
-  };
-  if(duplicates.length>0){
-    return <Modal title="Possible duplicate patient" sub="A patient with the same name and date of birth already exists." onClose={onClose}>
-      <div className="alert warning"><AlertCircle size={16}/>Review existing records before creating a new one to avoid duplicate registrations.</div>
-      {duplicates.map(p=><div className="duplicate-card" key={p.id}>
-        <div className="person"><div className="avatar">{initials(p.name)}</div><div><b>{p.name}</b><span className="mono">{p.patientId}</span><small>DOB: {fmtDate(p.dob)} · {p.phone}</small></div></div>
-        <div className="duplicate-actions">
-          <button className="secondary" onClick={()=>onBookAppt(p)}>Book appointment</button>
-          <button className="primary" onClick={()=>onClose()}>Use this record</button>
-        </div>
-      </div>)}
-      <div className="modal-actions">
-        <button className="secondary" onClick={()=>setDuplicates([])}>← Back to registration form</button>
-        <button className="primary" onClick={async()=>{
-          // Force create — override duplicate check by appending a note
-          setBusy(true);
-          try{
-            // Create with slight phone variation to pass server check — in production would use force:true flag
-            const resp=await fetch('/api/patients',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${localStorage.getItem('cw_token')}`},body:JSON.stringify({...form,_forceCreate:true,risk:'Possible duplicate — reviewed by receptionist'})});
-            const body=await resp.json();
-            if(!resp.ok){setError(body.error);setDuplicates([]);}
-            else onSaved(body);
-          }catch(err:any){setError(err.message);}
-          finally{setBusy(false);}
-        }} disabled={busy}>Create anyway (different person)</button>
-      </div>
-    </Modal>;
+    );
   }
-  return <Modal title="Register new patient" sub="All required fields are validated. Patient ID is assigned by the system." onClose={onClose}>
-    <form className="form-grid" onSubmit={submit}>
-      <label className="span-2">Full legal name<input required value={form.name} onChange={f('name')} placeholder="As it appears on official ID"/></label>
-      <label>Date of birth<input required type="date" value={form.dob} onChange={f('dob')} max={todayISO()}/></label>
-      <label>Phone number<input required value={form.phone} onChange={f('phone')} placeholder="+1 (555) 000-0000"/></label>
-      <label>Email address <span className="muted">optional</span><input type="email" value={form.email} onChange={f('email')}/></label>
-      <label>Emergency contact <span className="muted">optional</span><input value={form.emergencyContact} onChange={f('emergencyContact')} placeholder="Name · phone number"/></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="notice span-2"><ShieldCheck size={16}/><span>Patient ID (CW-XXXXX) will be generated automatically. Date of birth cannot be changed after registration.</span></div>
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':'Create patient record'}<ArrowRight size={16}/></button></div>
-    </form>
-  </Modal>;
+
+  return user ? (
+    <DoctorWorkspace user={user} onLogout={() => { localStorage.removeItem('cw_token'); setUser(null); }} />
+  ) : (
+    <DoctorLogin onLogin={setUser} />
+  );
 }
 
-// ─── EDIT PATIENT MODAL ──────────────────────────────────────────────────────
-function EditPatientModal({patient,onClose,onSaved}:{patient:Patient;onClose:()=>void;onSaved:(p:Patient)=>void}){
-  const [form,setForm]=useState({name:patient.name,phone:patient.phone,email:patient.email||'',emergencyContact:patient.emergencyContact||''});
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
-  const f=(k:string)=>(e:React.ChangeEvent<HTMLInputElement>)=>setForm({...form,[k]:e.target.value});
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{onSaved(await api.updatePatient(patient.id,form));}catch(err:any){setError(err.message);}finally{setBusy(false);}};
-  return <Modal title="Edit patient demographics" sub={`Editing permitted fields for ${patient.name} · ${patient.patientId}`} onClose={onClose}>
-    <div className="notice"><ShieldCheck size={16}/><span>Date of birth is immutable after registration. Only permitted demographic fields may be updated.</span></div>
-    <form className="form-grid" onSubmit={submit} style={{marginTop:14}}>
-      <label className="span-2">Full name<input required value={form.name} onChange={f('name')}/></label>
-      <label>Phone number<input required value={form.phone} onChange={f('phone')}/></label>
-      <label>Email address<input type="email" value={form.email} onChange={f('email')}/></label>
-      <label className="span-2">Emergency contact<input value={form.emergencyContact} onChange={f('emergencyContact')}/></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':'Save changes'}<Check size={16}/></button></div>
-    </form>
-  </Modal>;
-}
+// ─── DOCTOR LOGIN (EXCLUSIVELY DOCTOR PORTAL) ────────────────────────────────
+function DoctorLogin({ onLogin }: { onLogin: (u: User) => void }) {
+  const [email, setEmail] = useState('doctor@careweave.test');
+  const [password, setPassword] = useState('demo123');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-// ─── PATIENT DRAWER (admin view) ─────────────────────────────────────────────
-function PatientDrawer({patient,onClose,full,onBookAppt}:{patient:Patient;onClose:()=>void;full:boolean;onBookAppt?:(p:Patient)=>void}){
-  const [record,setRecord]=useState<PatientRecord|AdminPatientRecord|null>(null);
-  useEffect(()=>{
-    if(full)api.patient(patient.id).then(setRecord).catch(()=>{});
-    else api.patientAdmin(patient.id).then(setRecord).catch(()=>{});
-  },[patient,full]);
-  return <div className="drawer-backdrop" onClick={onClose}>
-    <div className="drawer" onClick={e=>e.stopPropagation()}>
-      <button className="drawer-close" onClick={onClose}><X size={18}/></button>
-      <div className="drawer-hero">
-        <div className="avatar large">{initials(patient.name)}</div>
-        <div><p className="eyebrow">{patient.patientId}</p><h2>{patient.name}</h2><span className="muted">Born {fmtDate(patient.dob)} · {patient.phone}</span></div>
-      </div>
-      {!full?<>
-        <div className="notice"><ShieldCheck size={18}/><span>Administrative scope only. Clinical notes, diagnoses, prescriptions, and lab values are protected from this portal.</span></div>
-        {patient.email&&<div className="drawer-field"><Mail size={14}/>{patient.email}</div>}
-        {patient.emergencyContact&&<div className="drawer-field"><Phone size={14}/>{patient.emergencyContact}</div>}
-        {onBookAppt&&<button className="primary wide" style={{marginTop:16}} onClick={()=>onBookAppt(patient)}><CalendarDays size={17}/>Book appointment</button>}
-        {record&&'appointments' in record&&(record as AdminPatientRecord).appointments.length>0&&<>
-          <div className="section-label">Appointment history</div>
-          <div className="appt-list">
-            {(record as AdminPatientRecord).appointments.map(a=><div className="appt-row" key={a.id}>
-              <div><b>{a.date} · {a.time}</b><span>{a.reason}</span></div>
-              <StatusBadge status={a.status}/>
-            </div>)}
-          </div>
-        </>}
-      </>:record?<>
-        <div className="section-label">Connected record snapshot</div>
-        <div className="mini-stats">
-          <div><b>{'timeline' in record?(record as PatientRecord).timeline.length:0}</b><small>timeline events</small></div>
-          <div><b>{'labOrders' in record?(record as PatientRecord).labOrders.length:0}</b><small>lab orders</small></div>
-          <div><b>{'prescriptions' in record?(record as PatientRecord).prescriptions.length:0}</b><small>prescriptions</small></div>
-        </div>
-        {'timeline' in record&&<div className="timeline compact">{(record as PatientRecord).timeline.slice(0,5).map(e=><TimelineItem key={e.id} event={e}/>)}</div>}
-      </>:<Loading/>}
-    </div>
-  </div>;
-}
-
-// ─── RECEPTIONIST: APPOINTMENTS ──────────────────────────────────────────────
-function Appointments({user,notify}:{user:User;notify:(s:string)=>void}){
-  const [items,setItems]=useState<Appointment[]>([]);
-  const [filter,setFilter]=useState<{date:string;status:string}>({date:'',status:''});
-  const [showCreate,setShowCreate]=useState(false);
-  const [rescheduleAppt,setRescheduleAppt]=useState<Appointment|null>(null);
-  const [q,setQ]=useState('');
-
-  const load=useCallback(()=>{
-    const params:any={};
-    if(filter.date==='today')params.date='today';
-    if(filter.status)params.status=filter.status;
-    api.appointments(params).then(setItems).catch(e=>notify(e.message));
-  },[filter]);
-  useEffect(()=>{load();},[load]);
-
-  const handleStatus=async(a:Appointment,status:string)=>{
-    try{await api.updateAppointment(a.id,{status});notify(`Appointment status updated to ${status}`);load();}
-    catch(e){notify((e as Error).message);}
+  const submit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.login(email, password);
+      localStorage.setItem('cw_token', r.token);
+      onLogin(r.user);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const shown=q?items.filter(a=>[a.patientName,a.patientIdCode,a.reason].some(v=>String(v||'').toLowerCase().includes(q.toLowerCase()))):items;
-
-  return <>
-    <PageHeader
-      eyebrow="Care coordination"
-      title="Appointments"
-      sub="Manage, schedule, and check in patients for their appointments."
-      action={user.role==='receptionist'?<button className="primary" onClick={()=>setShowCreate(true)}><Plus size={17}/>New appointment</button>:undefined}
-    />
-    <div className="toolbar toolbar-row">
-      <div className="search"><Search size={17}/><input placeholder="Search patient name, ID, or reason" value={q} onChange={e=>setQ(e.target.value)}/></div>
-      <div className="filter-row">
-        <select value={filter.date} onChange={e=>setFilter(f=>({...f,date:e.target.value}))}>
-          <option value="">All dates</option>
-          <option value="today">Today only</option>
-        </select>
-        <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))}>
-          <option value="">All statuses</option>
-          {['Scheduled','Checked In','Waiting','In Consultation','Completed','Cancelled','No Show'].map(s=><option key={s}>{s}</option>)}
-        </select>
+  return (
+    <div className="login-page">
+      <div className="login-visual">
+        <div className="visual-top">
+          <div className="brand">
+            <div className="brand-mark"><Stethoscope size={22} /></div>
+            <span>CareWeave Physician Portal</span>
+          </div>
+          <span className="pill subtle">Clinical Practice Edition</span>
+        </div>
+        <div className="visual-copy">
+          <p className="eyebrow">PHYSICIAN & CLINICAL PORTAL</p>
+          <h1>Evidence-based care.<br /><em>One unified timeline.</em></h1>
+          <p>
+            The dedicated clinical command center for physicians: comprehensive EHR charting, SOAP consultations,
+            active medication management, real-time lab trend analysis, chronic care pathways, and traceable external records.
+          </p>
+          <div className="visual-proof">
+            <div><ShieldCheck size={18} /> Full Clinical Access Scope</div>
+            <div><Activity size={18} /> Longitudinal Health Timeline</div>
+            <div><FlaskConical size={18} /> Diagnostic Trends & Ordering</div>
+            <div><RefreshCw size={18} /> Provenance Reconciliation</div>
+          </div>
+        </div>
+        <div className="visual-footer">
+          <span>CAREWEAVE CLINICAL RECORD SYSTEM</span>
+          <span>Physician Portal v2.0</span>
+        </div>
       </div>
-    </div>
-    <div className="card table-card">
-      <table>
-        <thead><tr><th>Date · Time</th><th>Patient</th><th>Reason</th><th>Clinician</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>{shown.map(a=><tr key={a.id}>
-          <td><b>{a.time}</b><small className="block">{a.date}</small></td>
-          <td><b>{a.patientName}</b><small className="block mono">{a.patientIdCode}</small></td>
-          <td>{a.reason}</td>
-          <td>{a.doctorName||'Unassigned'}</td>
-          <td><StatusBadge status={a.status}/>{a.checkedInAt&&<small className="block">{fmtDateTime(a.checkedInAt)}</small>}</td>
-          <td>
-            <div className="row-actions">
-              {a.status==='Scheduled'&&user.role==='receptionist'&&<>
-                <button className="secondary small-btn" onClick={()=>handleStatus(a,'Checked In')}><UserCheck size={13}/>Check in</button>
-                <button className="icon-button" title="Reschedule" onClick={()=>setRescheduleAppt(a)}><Edit2 size={14}/></button>
-                <button className="icon-button danger-icon" title="Cancel" onClick={()=>{if(window.confirm('Cancel this appointment?'))handleStatus(a,'Cancelled')}}><Ban size={14}/></button>
-              </>}
-              {a.status==='Checked In'&&user.role==='receptionist'&&<button className="secondary small-btn" onClick={()=>handleStatus(a,'Waiting')}><Clock3 size={13}/>Mark waiting</button>}
-              {!['Scheduled','Checked In'].includes(a.status)&&<span className="mono" style={{fontSize:10,color:'#91a3a8'}}>{a.status}</span>}
+
+      <div className="login-panel">
+        <div className="login-card">
+          <div className="mobile-brand">
+            <div className="brand-mark"><Stethoscope size={22} /></div>
+            <b>CareWeave Doctor Portal</b>
+          </div>
+          <p className="eyebrow">PHYSICIAN WORKSPACE</p>
+          <h2>Doctor Sign In</h2>
+          <p className="muted">Enter your physician credentials to access patient charts and clinical tools.</p>
+
+          <form onSubmit={submit}>
+            <label>
+              Doctor Email Address
+              <input value={email} onChange={e => setEmail(e.target.value)} type="email" required />
+            </label>
+            <label>
+              Password
+              <input value={password} onChange={e => setPassword(e.target.value)} type="password" required />
+            </label>
+            {error && <div className="alert danger"><AlertTriangle size={16} />{error}</div>}
+            <button className="primary wide" disabled={busy}>
+              {busy ? 'Authenticating…' : 'Enter Doctor Portal'}
+              <ArrowRight size={17} />
+            </button>
+          </form>
+
+          <div className="demo-box" style={{ marginTop: 20 }}>
+            <div className="demo-head">
+              <span>Physician Account</span>
+              <span className="tiny">Default Demo Access</span>
             </div>
-          </td>
-        </tr>)}
-        </tbody>
-      </table>
-      {shown.length===0&&<div className="empty"><CalendarDays size={28}/><b>No appointments found</b><span>Try adjusting filters or create a new appointment.</span></div>}
+            <button
+              className="demo-account"
+              onClick={() => {
+                setEmail('doctor@careweave.test');
+                setPassword('demo123');
+                submit();
+              }}
+              style={{ background: '#f0f9f8', borderRadius: 8, padding: '10px 12px' }}
+            >
+              <span className="role-dot doctor" style={{ width: 12, height: 12 }}></span>
+              <span>
+                <b>Dr. Amara Singh, MD</b>
+                <small>Internal Medicine & Primary Care · CareWeave Clinic</small>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="login-note">
+          <ShieldCheck size={15} /> Authenticated doctor session with end-to-end clinical audit logging.
+        </div>
+      </div>
     </div>
-
-    {showCreate&&<AppointmentModal onClose={()=>setShowCreate(false)} onSaved={()=>{setShowCreate(false);notify('Appointment scheduled');load();}}/>}
-    {rescheduleAppt&&<RescheduleModal appointment={rescheduleAppt} onClose={()=>setRescheduleAppt(null)} onSaved={()=>{setRescheduleAppt(null);notify('Appointment rescheduled');load();}}/>}
-  </>;
+  );
 }
 
-// ─── APPOINTMENT CREATION MODAL ──────────────────────────────────────────────
-function AppointmentModal({patient:initPatient,onClose,onSaved}:{patient?:Patient;onClose:()=>void;onSaved:()=>void}){
-  const [patientQ,setPatientQ]=useState(initPatient?.name||'');
-  const [patients,setPatients]=useState<Patient[]>(initPatient?[initPatient]:[]);
-  const [selectedPatient,setSelectedPatient]=useState<Patient|null>(initPatient||null);
-  const [doctors,setDoctors]=useState<Doctor[]>([]);
-  const [form,setForm]=useState({date:todayISO(),time:'09:00',reason:'',doctorId:''});
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+// ─── DOCTOR WORKSPACE (SIDEBAR & ROUTING) ──────────────────────────────────
+function DoctorWorkspace({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const [section, setSection] = useState('overview');
+  const [collapsed, setCollapsed] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [toast, setToast] = useState('');
 
-  useEffect(()=>{api.doctors().then(setDoctors).catch(()=>{});},[]);
-  useEffect(()=>{if(patientQ.length>1)api.patients(patientQ).then(setPatients).catch(()=>{});else if(!initPatient)setPatients([]);},[patientQ]);
-  useEffect(()=>{if(doctors.length>0&&!form.doctorId)setForm(f=>({...f,doctorId:doctors[0].id}));},[doctors]);
+  // Doctor Quick Action Modal Triggers
+  const [orderLabPatient, setOrderLabPatient] = useState<Patient | null>(null);
+  const [prescribePatient, setPrescribePatient] = useState<Patient | null>(null);
+  const [referralPatient, setReferralPatient] = useState<Patient | null>(null);
+  const [newEncounterPatient, setNewEncounterPatient] = useState<Patient | null>(null);
+  const [scheduleFollowUpPatient, setScheduleFollowUpPatient] = useState<Patient | null>(null);
+  const [selectedPatientForRecord, setSelectedPatientForRecord] = useState<Patient | null>(null);
 
-  const submit=async(e:React.FormEvent)=>{
-    e.preventDefault();if(!selectedPatient)return setError('Please select a patient');
-    setBusy(true);setError('');
-    try{
-      await api.createAppointment({patientId:selectedPatient.id,date:form.date,time:form.time+' '+(Number(form.time.split(':')[0])>=12?'PM':'AM'),reason:form.reason,doctorId:form.doctorId});
+  const nav: [string, string, any][] = [
+    ['overview', 'Clinical Overview', LayoutDashboard],
+    ['appointments', 'Appointments & Queue', CalendarDays],
+    ['records', 'Patient Records & EHR', Users],
+    ['consultations', 'Encounters & SOAP', Stethoscope],
+    ['labs', 'Labs & Diagnostics', FlaskConical],
+    ['prescriptions', 'E-Prescriptions', FileText],
+    ['careplans', 'Care Plans & Protocols', HeartPulse],
+    ['referrals', 'Specialist Referrals', ClipboardList],
+    ['calculators', 'Clinical Calculators', Activity],
+    ['reconciliation', 'External Records Review', RefreshCw]
+  ];
+
+  const notify = (s: string) => {
+    setToast(s);
+    setTimeout(() => setToast(''), 3500);
+  };
+
+  const handleOpenPatientRecord = (p: Patient) => {
+    setSelectedPatientForRecord(p);
+    setSection('records');
+  };
+
+  return (
+    <div className={`app-shell ${collapsed ? 'nav-collapsed' : ''}`}>
+      <aside className="sidebar">
+        <div className="side-brand">
+          <div className="brand-mark"><Stethoscope size={21} /></div>
+          <span>CareWeave</span>
+        </div>
+
+        <div className="workspace-switch" style={{ background: '#f2f9f8', borderColor: '#bce4df' }}>
+          <span className="role-dot doctor" style={{ width: 10, height: 10 }}></span>
+          <div>
+            <b style={{ color: '#13675f' }}>Doctor Portal</b>
+            <small>CareWeave Clinical EHR</small>
+          </div>
+          <ShieldCheck size={15} style={{ color: '#188b81' }} />
+        </div>
+
+        <nav>
+          {nav.map(([navId, label, Icon]) => (
+            <button
+              key={navId}
+              className={section === navId ? 'active' : ''}
+              onClick={() => setSection(navId)}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+              {navId === 'reconciliation' && <span className="nav-count">3</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="side-bottom">
+          <div className="privacy-card" style={{ background: '#f0f9f8', borderColor: '#bfe6e1' }}>
+            <ShieldCheck size={16} />
+            <span>
+              Physician Credentials Verified<br />
+              <small>Full clinical authority & audit logs</small>
+            </span>
+          </div>
+          <div className="side-user-chip">
+            <div className="avatar small" style={{ background: '#178b81', color: '#fff' }}>
+              {initials(user.name)}
+            </div>
+            <div>
+              <b>{user.name}</b>
+              <small>{user.facility}</small>
+            </div>
+          </div>
+          <button className="logout" onClick={onLogout}>
+            <LogOut size={17} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="main">
+        <header className="topbar">
+          <button className="icon-button menu-button" onClick={() => setCollapsed(!collapsed)}>
+            <Menu size={20} />
+          </button>
+          <div className="breadcrumb">
+            <span>Doctor Portal</span>
+            <ChevronRight size={14} />
+            <b>{nav.find(n => n[0] === section)?.[1]}</b>
+          </div>
+
+          <div className="top-actions">
+            <button
+              className="action-pill"
+              onClick={() => setSection('consultations')}
+              title="Start a new encounter"
+            >
+              <Stethoscope size={15} />
+              <span>New SOAP Encounter</span>
+            </button>
+            <button
+              className="action-pill blue"
+              onClick={() => setSection('labs')}
+              title="Order diagnostic tests"
+            >
+              <TestTube2 size={15} />
+              <span>Order Lab Test</span>
+            </button>
+            <button
+              className="icon-button"
+              onClick={() => { setRefresh(v => v + 1); notify('Clinical data refreshed'); }}
+              title="Refresh Workspace"
+            >
+              <RefreshCw size={17} />
+            </button>
+            <div className="user-chip">
+              <div className="avatar" style={{ background: '#138f86', color: '#fff' }}>
+                {initials(user.name)}
+              </div>
+              <span>
+                <b>{user.name}</b>
+                <small>CareWeave Clinic</small>
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <div className="content">
+          {section === 'overview' && (
+            <DoctorOverview
+              user={user}
+              refresh={refresh}
+              go={setSection}
+              notify={notify}
+              onOpenPatient={handleOpenPatientRecord}
+              onStartConsultation={p => { setNewEncounterPatient(p); }}
+              onOrderLab={p => setOrderLabPatient(p)}
+              onPrescribe={p => setPrescribePatient(p)}
+            />
+          )}
+
+          {section === 'appointments' && (
+            <DoctorAppointments
+              user={user}
+              notify={notify}
+              onOpenPatient={handleOpenPatientRecord}
+              onStartConsultation={p => setNewEncounterPatient(p)}
+              onScheduleFollowUp={p => setScheduleFollowUpPatient(p)}
+            />
+          )}
+
+          {section === 'records' && (
+            <DoctorPatientRecords
+              notify={notify}
+              preSelectedPatient={selectedPatientForRecord}
+              onStartSOAP={p => setNewEncounterPatient(p)}
+              onOrderLab={p => setOrderLabPatient(p)}
+              onPrescribe={p => setPrescribePatient(p)}
+              onReferral={p => setReferralPatient(p)}
+            />
+          )}
+
+          {section === 'consultations' && (
+            <DoctorConsultations
+              notify={notify}
+              preSelectedPatient={selectedPatientForRecord}
+              onOpenPatient={handleOpenPatientRecord}
+            />
+          )}
+
+          {section === 'labs' && (
+            <DoctorLabsAndDiagnostics
+              notify={notify}
+              onOrderTest={() => setOrderLabPatient({} as Patient)}
+              onOpenPatient={handleOpenPatientRecord}
+            />
+          )}
+
+          {section === 'prescriptions' && (
+            <DoctorPrescriptions
+              notify={notify}
+              onPrescribe={() => setPrescribePatient({} as Patient)}
+              onOpenPatient={handleOpenPatientRecord}
+            />
+          )}
+
+          {section === 'careplans' && (
+            <DoctorCarePlans
+              notify={notify}
+              onOpenPatient={handleOpenPatientRecord}
+            />
+          )}
+
+          {section === 'referrals' && (
+            <DoctorReferrals
+              notify={notify}
+              onNewReferral={() => setReferralPatient({} as Patient)}
+              onOpenPatient={handleOpenPatientRecord}
+            />
+          )}
+
+          {section === 'calculators' && (
+            <DoctorClinicalCalculators notify={notify} />
+          )}
+
+          {section === 'reconciliation' && (
+            <DoctorReconciliation notify={notify} />
+          )}
+        </div>
+      </main>
+
+      {/* GLOBAL CLINICAL ACTION MODALS */}
+      {orderLabPatient && (
+        <OrderLabModal
+          patient={orderLabPatient.id ? orderLabPatient : undefined}
+          onClose={() => setOrderLabPatient(null)}
+          onSaved={() => {
+            setOrderLabPatient(null);
+            notify('Diagnostic laboratory order submitted successfully');
+            setRefresh(v => v + 1);
+          }}
+        />
+      )}
+
+      {prescribePatient && (
+        <PrescribeModal
+          patient={prescribePatient.id ? prescribePatient : undefined}
+          onClose={() => setPrescribePatient(null)}
+          onSaved={() => {
+            setPrescribePatient(null);
+            notify('E-Prescription authorized and recorded');
+            setRefresh(v => v + 1);
+          }}
+        />
+      )}
+
+      {referralPatient && (
+        <SpecialistReferralModal
+          patient={referralPatient.id ? referralPatient : undefined}
+          onClose={() => setReferralPatient(null)}
+          onSaved={() => {
+            setReferralPatient(null);
+            notify('Specialist referral request transmitted');
+            setRefresh(v => v + 1);
+          }}
+        />
+      )}
+
+      {newEncounterPatient && (
+        <SOAPEncounterModal
+          patient={newEncounterPatient}
+          onClose={() => setNewEncounterPatient(null)}
+          onSaved={() => {
+            setNewEncounterPatient(null);
+            notify('Clinical encounter documented in patient timeline');
+            setRefresh(v => v + 1);
+          }}
+        />
+      )}
+
+      {scheduleFollowUpPatient && (
+        <FollowUpAppointmentModal
+          patient={scheduleFollowUpPatient}
+          onClose={() => setScheduleFollowUpPatient(null)}
+          onSaved={() => {
+            setScheduleFollowUpPatient(null);
+            notify('Follow-up appointment scheduled');
+            setRefresh(v => v + 1);
+          }}
+        />
+      )}
+
+      {toast && (
+        <div className="toast">
+          <Check size={16} />
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SHARED REUSABLE COMPONENTS ───────────────────────────────────────────
+function PageHeader({ eyebrow, title, sub, action }: { eyebrow: string; title: string; sub: string; action?: React.ReactNode }) {
+  return (
+    <div className="page-header">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+        <p className="muted">{sub}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function StatCard({ label, value, delta, icon, tone = 'teal' }: { label: string; value: string | number; delta?: string; icon: React.ReactNode; tone?: string }) {
+  return (
+    <div className="stat-card">
+      <div className={`stat-icon ${tone}`}>{icon}</div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        {delta && <small className="positive">{delta}</small>}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return <span className={`status ${status.toLowerCase().replaceAll(' ', '-')}`}>{status}</span>;
+}
+
+function Loading() {
+  return (
+    <div className="loading-card">
+      <RefreshCw className="spin" size={20} />
+      <span>Loading clinical records…</span>
+    </div>
+  );
+}
+
+function Modal({ title, sub, onClose, children }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <h2>{title}</h2>
+            <p className="muted">{sub || 'Clinician authorized action with server-side audit logging.'}</p>
+          </div>
+          <button className="icon-button" onClick={onClose}><X size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── 1. CLINICAL OVERVIEW (DASHBOARD) ──────────────────────────────────────
+function DoctorOverview({
+  user,
+  refresh,
+  go,
+  notify,
+  onOpenPatient,
+  onStartConsultation,
+  onOrderLab,
+  onPrescribe
+}: {
+  user: User;
+  refresh: number;
+  go: (s: string) => void;
+  notify: (s: string) => void;
+  onOpenPatient: (p: Patient) => void;
+  onStartConsultation: (p: Patient) => void;
+  onOrderLab: (p: Patient) => void;
+  onPrescribe: (p: Patient) => void;
+}) {
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [allPatients, setAllPatients] = useState<Patient[]>([]);
+
+  useEffect(() => {
+    api.dashboard().then(setData).catch(e => notify(e.message));
+    api.patients().then(setAllPatients).catch(() => {});
+  }, [refresh]);
+
+  if (!data) return <Loading />;
+  const s = data.stats;
+  const todayAppts = data.appointments;
+  const waitingPatients = todayAppts.filter(a => ['Waiting', 'Checked In', 'Checked in'].includes(a.status));
+  const inConsultation = todayAppts.filter(a => a.status === 'In Consultation');
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Clinical Command Center"
+        title={`Good day, ${user.name}.`}
+        sub="CareWeave Physician Workspace · Real-time patient flow, diagnostic alerts, and clinical actions."
+        action={
+          <div className="header-actions">
+            <button className="secondary" onClick={() => go('records')}>
+              <Search size={16} /> Search Patient EHR
+            </button>
+            <button className="primary" onClick={() => go('consultations')}>
+              <Stethoscope size={16} /> New Clinical Encounter
+            </button>
+          </div>
+        }
+      />
+
+      {/* QUICK CLINICAL ACTION BAR */}
+      <div className="doctor-quick-actions">
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#375b63', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Activity size={14} color="#138f86" /> CLINICAL SHORTCUTS:
+        </span>
+        <button className="action-pill" onClick={() => go('consultations')}>
+          <Stethoscope size={14} /> Document SOAP Note
+        </button>
+        <button className="action-pill blue" onClick={() => onOrderLab({} as Patient)}>
+          <TestTube2 size={14} /> Order Diagnostic Lab / Imaging
+        </button>
+        <button className="action-pill amber" onClick={() => onPrescribe({} as Patient)}>
+          <FileText size={14} /> Authorize E-Prescription
+        </button>
+        <button className="action-pill" onClick={() => go('referrals')}>
+          <ClipboardList size={14} /> Outbound Specialist Referral
+        </button>
+        <button className="action-pill blue" onClick={() => go('careplans')}>
+          <HeartPulse size={14} /> Chronic Care Protocol
+        </button>
+        <button className="action-pill" onClick={() => go('calculators')}>
+          <Sliders size={14} /> ASCVD & Renal Calculators
+        </button>
+      </div>
+
+      <div className="stat-grid">
+        <StatCard
+          label="Today's Patient Schedule"
+          value={todayAppts.length}
+          icon={<CalendarDays size={20} />}
+          tone="teal"
+          delta={`${todayAppts.filter(a => a.status === 'Completed').length} completed`}
+        />
+        <StatCard
+          label="Patients Waiting / In Clinic"
+          value={waitingPatients.length + inConsultation.length}
+          icon={<Clock3 size={20} />}
+          tone="amber"
+          delta={inConsultation.length > 0 ? `${inConsultation.length} in exam room` : 'Ready for consult'}
+        />
+        <StatCard
+          label="Diagnostic Results to Review"
+          value={s.released || data.labOrders.filter(l => l.status === 'Released to Doctor').length}
+          icon={<FlaskConical size={20} />}
+          tone="blue"
+          delta="Verified by lab"
+        />
+        <StatCard
+          label="Reconciliation Cases"
+          value={data.cases.length}
+          icon={<RefreshCw size={20} />}
+          tone="green"
+          delta="Provenance checks"
+        />
+      </div>
+
+      <div className="dashboard-grid">
+        {/* DOCTOR'S ACTIVE APPOINTMENT & EXAM QUEUE */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>Today's Clinical Roster & Patient Flow</h3>
+              <p className="muted">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} · Assigned Clinician: {user.name}
+              </p>
+            </div>
+            <button className="text-button" onClick={() => go('appointments')}>
+              Full Schedule <ArrowRight size={15} />
+            </button>
+          </div>
+
+          <div className="list">
+            {todayAppts.length === 0 && (
+              <div className="empty">
+                <CalendarDays size={28} />
+                <b>No appointments scheduled for today</b>
+                <span>Use the appointments section to schedule or view upcoming dates.</span>
+              </div>
+            )}
+
+            {todayAppts.map(a => {
+              const patientObj = allPatients.find(p => p.id === a.patientId || p.patientId === a.patientIdCode);
+              return (
+                <div className="list-row" key={a.id} style={{ alignItems: 'center' }}>
+                  <div className="time-block">
+                    <b>{a.time}</b>
+                    <small>{a.status}</small>
+                  </div>
+                  <div className="avatar small">{initials(a.patientName)}</div>
+                  <div className="row-main">
+                    <b>{a.patientName}</b>
+                    <span>{a.reason} {a.checkedInAt && `· Waiting: ${waitDuration(a.checkedInAt)}`}</span>
+                  </div>
+                  <StatusBadge status={a.status} />
+
+                  <div className="row-actions" style={{ marginLeft: 8 }}>
+                    {['Waiting', 'Checked In', 'Checked in'].includes(a.status) && (
+                      <button
+                        className="primary small-btn"
+                        onClick={async () => {
+                          try {
+                            await api.updateAppointment(a.id, { status: 'In Consultation' });
+                            notify(`Started consultation with ${a.patientName}`);
+                            if (patientObj) onStartConsultation(patientObj);
+                            else go('consultations');
+                          } catch (e) {
+                            notify((e as Error).message);
+                          }
+                        }}
+                      >
+                        <Stethoscope size={13} />
+                        Call In
+                      </button>
+                    )}
+
+                    {a.status === 'In Consultation' && (
+                      <button
+                        className="secondary small-btn"
+                        style={{ background: '#eaf7f0', color: '#258156', borderColor: '#b7e8d0' }}
+                        onClick={async () => {
+                          try {
+                            await api.updateAppointment(a.id, { status: 'Completed' });
+                            notify(`Encounter with ${a.patientName} marked completed`);
+                          } catch (e) {
+                            notify((e as Error).message);
+                          }
+                        }}
+                      >
+                        <CheckCircle2 size={13} />
+                        Complete Visit
+                      </button>
+                    )}
+
+                    <button
+                      className="secondary small-btn"
+                      onClick={() => {
+                        if (patientObj) onOpenPatient(patientObj);
+                        else go('records');
+                      }}
+                      title="Open EHR Chart"
+                    >
+                      Chart <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CLINICAL INTELLIGENCE & HIGH-PRIORITY ALERTS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="card intelligence-card">
+            <div className="card-head">
+              <div>
+                <h3>Record Intelligence & Alerts</h3>
+                <p className="muted">Multi-facility clinical provenance signals</p>
+              </div>
+              <div className="spark"><Activity size={17} /></div>
+            </div>
+            <div className="intel-metric">
+              <strong>{data.cases.length}</strong>
+              <span>external records pending review</span>
+            </div>
+            <div className="intel-items">
+              {data.cases.map(c => (
+                <div key={c.id}>
+                  <span className={`signal ${c.type}`}></span>
+                  <span>
+                    <b>{c.title}</b>
+                    <small>{c.detail}</small>
+                  </span>
+                  <ChevronRight size={15} />
+                </div>
+              ))}
+            </div>
+            <button className="secondary wide" onClick={() => go('reconciliation')}>
+              Review Reconciliation Queue <ArrowRight size={14} />
+            </button>
+          </div>
+
+          {/* ACTIVE LAB ORDERS AWAITING REVIEW */}
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <h3 style={{ fontSize: 14 }}>Recent Lab Orders & Results</h3>
+                <p className="muted">Direct diagnostic feed</p>
+              </div>
+              <button className="text-button" onClick={() => go('labs')}>View Labs <ArrowRight size={13} /></button>
+            </div>
+            <div className="list">
+              {data.labOrders.slice(0, 4).map(o => (
+                <div className="list-row" key={o.id} style={{ padding: '8px 0' }}>
+                  <div className="row-main">
+                    <b>{o.testName}</b>
+                    <span>{o.patientName} · {fmtDate(o.requestedAt)}</span>
+                  </div>
+                  <StatusBadge status={o.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── 2. DOCTOR APPOINTMENTS & PATIENT QUEUE ────────────────────────────────
+function DoctorAppointments({
+  user,
+  notify,
+  onOpenPatient,
+  onStartConsultation,
+  onScheduleFollowUp
+}: {
+  user: User;
+  notify: (s: string) => void;
+  onOpenPatient: (p: Patient) => void;
+  onStartConsultation: (p: Patient) => void;
+  onScheduleFollowUp: (p: Patient) => void;
+}) {
+  const [items, setItems] = useState<Appointment[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [filter, setFilter] = useState<{ date: string; status: string }>({ date: '', status: '' });
+  const [q, setQ] = useState('');
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  const load = useCallback(() => {
+    const params: any = {};
+    if (filter.date === 'today') params.date = 'today';
+    if (filter.status) params.status = filter.status;
+    api.appointments(params).then(setItems).catch(e => notify(e.message));
+    api.patients().then(setPatients).catch(() => {});
+  }, [filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleStatus = async (a: Appointment, status: string) => {
+    try {
+      await api.updateAppointment(a.id, { status });
+      notify(`Appointment marked ${status}`);
+      load();
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  };
+
+  const shown = q
+    ? items.filter(a => [a.patientName, a.patientIdCode, a.reason].some(v => String(v || '').toLowerCase().includes(q.toLowerCase())))
+    : items;
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Clinical Schedule & Queue"
+        title="Physician Appointments"
+        sub="Manage consultation schedule, patient waiting queue, and start clinical encounters."
+        action={
+          <button className="primary" onClick={() => setShowScheduleModal(true)}>
+            <Plus size={17} /> Schedule Clinical Follow-up
+          </button>
+        }
+      />
+
+      <div className="toolbar toolbar-row">
+        <div className="search">
+          <Search size={17} />
+          <input
+            placeholder="Search patient name, ID, or clinical reason"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <div className="filter-row">
+          <select value={filter.date} onChange={e => setFilter(f => ({ ...f, date: e.target.value }))}>
+            <option value="">All Dates</option>
+            <option value="today">Today's Queue Only</option>
+          </select>
+          <select value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
+            <option value="">All Statuses</option>
+            {['Scheduled', 'Checked In', 'Waiting', 'In Consultation', 'Completed', 'Cancelled', 'No Show'].map(s => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Date · Time</th>
+              <th>Patient</th>
+              <th>Reason for Visit</th>
+              <th>Current Status</th>
+              <th>Waiting Time</th>
+              <th>Clinical Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(a => {
+              const p = patients.find(pt => pt.id === a.patientId || pt.patientId === a.patientIdCode);
+              return (
+                <tr key={a.id}>
+                  <td>
+                    <b>{a.time}</b>
+                    <small className="block">{a.date}</small>
+                  </td>
+                  <td>
+                    <div className="person">
+                      <div className="avatar small">{initials(a.patientName)}</div>
+                      <div>
+                        <b>{a.patientName}</b>
+                        <small className="mono">{a.patientIdCode}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{a.reason}</td>
+                  <td><StatusBadge status={a.status} /></td>
+                  <td>
+                    {a.checkedInAt ? (
+                      <span className="wait-chip"><ClockIcon size={11} /> {waitDuration(a.checkedInAt)}</span>
+                    ) : '—'}
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      {['Waiting', 'Checked In', 'Checked in'].includes(a.status) && (
+                        <button
+                          className="primary small-btn"
+                          onClick={async () => {
+                            await handleStatus(a, 'In Consultation');
+                            if (p) onStartConsultation(p);
+                          }}
+                        >
+                          <Stethoscope size={13} /> Call In
+                        </button>
+                      )}
+
+                      {a.status === 'In Consultation' && (
+                        <button
+                          className="secondary small-btn"
+                          style={{ background: '#eaf7f0', color: '#258156' }}
+                          onClick={() => handleStatus(a, 'Completed')}
+                        >
+                          <CheckCircle2 size={13} /> Complete
+                        </button>
+                      )}
+
+                      {p && (
+                        <button
+                          className="secondary small-btn"
+                          onClick={() => onOpenPatient(p)}
+                          title="Open Comprehensive EHR"
+                        >
+                          Open EHR
+                        </button>
+                      )}
+
+                      {a.status === 'Completed' && p && (
+                        <button
+                          className="secondary small-btn"
+                          onClick={() => onScheduleFollowUp(p)}
+                          title="Book follow-up"
+                        >
+                          <Calendar size={13} /> Follow-up
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {shown.length === 0 && (
+          <div className="empty">
+            <CalendarDays size={28} />
+            <b>No appointments matching filter criteria</b>
+            <span>Adjust your search or schedule a new patient appointment.</span>
+          </div>
+        )}
+      </div>
+
+      {showScheduleModal && (
+        <FollowUpAppointmentModal
+          onClose={() => setShowScheduleModal(false)}
+          onSaved={() => {
+            setShowScheduleModal(false);
+            notify('Appointment scheduled successfully');
+            load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── 3. PATIENT RECORDS & UNIFIED EHR DIRECTORY ─────────────────────────────
+function DoctorPatientRecords({
+  notify,
+  preSelectedPatient,
+  onStartSOAP,
+  onOrderLab,
+  onPrescribe,
+  onReferral
+}: {
+  notify: (s: string) => void;
+  preSelectedPatient?: Patient | null;
+  onStartSOAP: (p: Patient) => void;
+  onOrderLab: (p: Patient) => void;
+  onPrescribe: (p: Patient) => void;
+  onReferral: (p: Patient) => void;
+}) {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState<PatientRecord | null>(null);
+  const [activeTab, setActiveTab] = useState<'summary' | 'timeline' | 'labs' | 'vitals' | 'rx' | 'problems'>('summary');
+  const [showVitalsModal, setShowVitalsModal] = useState(false);
+  const [showProblemModal, setShowProblemModal] = useState(false);
+  const [showAllergyModal, setShowAllergyModal] = useState(false);
+
+  const loadPatients = useCallback(() => {
+    api.patients(q).then(setPatients).catch(e => notify(e.message));
+  }, [q]);
+
+  useEffect(() => { loadPatients(); }, [loadPatients]);
+
+  useEffect(() => {
+    if (preSelectedPatient) {
+      api.patient(preSelectedPatient.id).then(setSelected).catch(() => {});
+    } else if (patients.length > 0 && !selected) {
+      api.patient(patients[0].id).then(setSelected).catch(() => {});
+    }
+  }, [preSelectedPatient, patients]);
+
+  const refreshCurrentRecord = () => {
+    if (selected) {
+      api.patient(selected.id).then(setSelected).catch(() => {});
+    }
+  };
+
+  const latestVital = selected?.vitals?.[0];
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Clinical Workspace · Electronic Health Records"
+        title="Patient Records & Unified Charts"
+        sub="Authoritative health record repository: longitudinal timeline, vitals trends, chronic conditions, and allergy guardrails."
+        action={
+          selected ? (
+            <div className="header-actions">
+              <button className="secondary" onClick={() => onOrderLab(selected)}>
+                <TestTube2 size={16} /> Order Lab
+              </button>
+              <button className="secondary" onClick={() => onPrescribe(selected)}>
+                <FileText size={16} /> Prescribe
+              </button>
+              <button className="primary" onClick={() => onStartSOAP(selected)}>
+                <Stethoscope size={16} /> SOAP Encounter
+              </button>
+            </div>
+          ) : undefined
+        }
+      />
+
+      <div className="doctor-layout">
+        {/* PATIENT SEARCH COLUMN */}
+        <div className="card patient-search-card">
+          <div className="search">
+            <Search size={17} />
+            <input
+              placeholder="Search patient name or ID"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+            />
+          </div>
+          <div className="patient-results">
+            {patients.map(p => (
+              <button
+                key={p.id}
+                className={`patient-result ${selected?.id === p.id ? 'selected' : ''}`}
+                onClick={() => api.patient(p.id).then(setSelected)}
+              >
+                <div className="avatar small">{initials(p.name)}</div>
+                <span>
+                  <b>{p.name}</b>
+                  <small>{p.patientId} · DOB {fmtDate(p.dob)}</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* PATIENT CHART PANEL */}
+        <div className="card record-panel">
+          {selected ? (
+            <>
+              {/* PATIENT HERO BANNER */}
+              <div className="record-header">
+                <div className="person">
+                  <div className="avatar large" style={{ background: '#138f86', color: '#fff' }}>
+                    {initials(selected.name)}
+                  </div>
+                  <div>
+                    <p className="eyebrow">{selected.patientId}</p>
+                    <h2>{selected.name}</h2>
+                    <span className="muted">
+                      Born {fmtDate(selected.dob)} · Phone: {selected.phone} · Email: {selected.email || 'None on file'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="row-actions">
+                  <button className="action-pill amber" onClick={() => onReferral(selected)}>
+                    <ClipboardList size={14} /> Specialist Referral
+                  </button>
+                </div>
+              </div>
+
+              {/* ALLERGIES & CHRONIC PROBLEMS CHIPS */}
+              <div className="patient-tags">
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#47636e', alignSelf: 'center' }}>
+                  CLINICAL TAGS:
+                </span>
+                {selected.allergies && selected.allergies.length > 0 ? (
+                  selected.allergies.map(a => (
+                    <span key={a.id} className="tag-pill allergy" title={`Reaction: ${a.reaction}`}>
+                      <AlertCircle size={12} /> Allergy: {a.allergen} ({a.severity})
+                    </span>
+                  ))
+                ) : (
+                  <span className="tag-pill" style={{ background: '#eef6f5', color: '#277068' }}>
+                    <Check size={12} /> No Known Drug Allergies (NKDA)
+                  </span>
+                )}
+
+                {selected.problems && selected.problems.map(pr => (
+                  <span key={pr.id} className="tag-pill problem">
+                    <Activity size={12} /> {pr.name} ({pr.code})
+                  </span>
+                ))}
+              </div>
+
+              {/* SUB-TABS NAVIGATION */}
+              <div className="sub-tabs" style={{ marginTop: 18 }}>
+                <button
+                  className={`sub-tab-btn ${activeTab === 'summary' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('summary')}
+                >
+                  <Activity size={15} /> Clinical Snapshot & Vitals
+                </button>
+                <button
+                  className={`sub-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('timeline')}
+                >
+                  <Clock3 size={15} /> Health Timeline ({selected.timeline.length})
+                </button>
+                <button
+                  className={`sub-tab-btn ${activeTab === 'labs' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('labs')}
+                >
+                  <FlaskConical size={15} /> Lab Trends & Tests ({selected.labOrders.length})
+                </button>
+                <button
+                  className={`sub-tab-btn ${activeTab === 'rx' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('rx')}
+                >
+                  <FileText size={15} /> Prescriptions ({selected.prescriptions.length})
+                </button>
+                <button
+                  className={`sub-tab-btn ${activeTab === 'problems' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('problems')}
+                >
+                  <AlertCircle size={15} /> Problems & Allergies
+                </button>
+              </div>
+
+              {/* TAB 1: CLINICAL SNAPSHOT & VITALS */}
+              {activeTab === 'summary' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 14, color: 'var(--navy)' }}>Most Recent Vitals Examination</h3>
+                    <button className="primary small-btn" onClick={() => setShowVitalsModal(true)}>
+                      <Plus size={14} /> Record New Vitals
+                    </button>
+                  </div>
+
+                  {latestVital ? (
+                    <div className="vitals-grid">
+                      <div className="vital-tile">
+                        <span>Blood Pressure</span>
+                        <strong>{latestVital.bpSystolic}/{latestVital.bpDiastolic}</strong>
+                        <small>mmHg</small>
+                        <span className={`vital-badge ${latestVital.bpSystolic > 130 ? 'elevated' : 'normal'}`}>
+                          {latestVital.bpSystolic > 130 ? 'Stage 1-2' : 'Normal'}
+                        </span>
+                      </div>
+                      <div className="vital-tile">
+                        <span>Heart Rate</span>
+                        <strong>{latestVital.heartRate}</strong>
+                        <small>bpm</small>
+                        <span className="vital-badge normal">Resting</span>
+                      </div>
+                      <div className="vital-tile">
+                        <span>Oxygen Saturation</span>
+                        <strong>{latestVital.spo2}%</strong>
+                        <small>SpO2 (Room Air)</small>
+                        <span className="vital-badge normal">Adequate</span>
+                      </div>
+                      <div className="vital-tile">
+                        <span>Body Temp</span>
+                        <strong>{latestVital.tempF}°F</strong>
+                        <small>Oral</small>
+                        <span className="vital-badge normal">Afebrile</span>
+                      </div>
+                      <div className="vital-tile">
+                        <span>Body Mass Index</span>
+                        <strong>{latestVital.bmi}</strong>
+                        <small>kg/m²</small>
+                        <span className={`vital-badge ${latestVital.bmi > 25 ? 'elevated' : 'normal'}`}>
+                          {latestVital.bmi > 25 ? 'Overweight' : 'Normal'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="notice" style={{ marginBottom: 16 }}>
+                      <AlertCircle size={16} /> No vitals recorded yet. Use the "Record New Vitals" button above.
+                    </div>
+                  )}
+
+                  {/* ACTIVE CARE PLANS SNAPSHOT */}
+                  <h3 style={{ fontSize: 14, color: 'var(--navy)', marginTop: 24, marginBottom: 12 }}>
+                    Active Chronic Care Plans
+                  </h3>
+                  {selected.carePlans && selected.carePlans.length > 0 ? (
+                    <div className="careplan-grid">
+                      {selected.carePlans.map(cp => (
+                        <div className="careplan-card" key={cp.id}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <b style={{ fontSize: 13, color: 'var(--navy)' }}>{cp.title}</b>
+                            <span className="pill" style={{ background: '#e7f5f3', color: '#148b81' }}>{cp.category}</span>
+                          </div>
+                          <div className="targets">
+                            {cp.targets.map((tg, i) => (
+                              <div className="target-row" key={i}>
+                                <span>{tg.metric}: <b>{tg.current}</b> (target {tg.target})</span>
+                                <span className={`target-status ${tg.status}`}>{tg.status}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ fontSize: 12 }}>No active chronic disease protocols enrolled for this patient.</p>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: HEALTH TIMELINE */}
+              {activeTab === 'timeline' && <TimelineView record={selected} />}
+
+              {/* TAB 3: LABS & COMPARABLE TRENDS */}
+              {activeTab === 'labs' && <LabReview record={selected} />}
+
+              {/* TAB 4: PRESCRIPTIONS */}
+              {activeTab === 'rx' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 14, color: 'var(--navy)' }}>Current Medications & Regimens</h3>
+                    <button className="primary small-btn" onClick={() => onPrescribe(selected)}>
+                      <Plus size={14} /> New E-Prescription
+                    </button>
+                  </div>
+                  <div className="card table-card">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Medication & Dosage</th>
+                          <th>Route / Frequency</th>
+                          <th>Duration</th>
+                          <th>Prescribing Source</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.prescriptions.map(p => (
+                          <tr key={p.id}>
+                            <td>
+                              <b>{p.medicine}</b>
+                              <small className="block">{p.dosage}</small>
+                            </td>
+                            <td>{p.route} · {p.frequency}</td>
+                            <td>{p.duration}</td>
+                            <td>
+                              <span className="mono">{p.source}</span>
+                              {p.imported && <span className="imported-label" style={{ marginLeft: 6 }}>Imported</span>}
+                            </td>
+                            <td>
+                              <span className={p.status === 'Discontinued' ? 'rx-discontinued-tag' : 'rx-active-tag'}>
+                                {p.status || 'Active'}
+                              </span>
+                            </td>
+                            <td>
+                              {p.status !== 'Discontinued' && (
+                                <button
+                                  className="secondary small-btn"
+                                  onClick={async () => {
+                                    if (window.confirm(`Discontinue ${p.medicine}?`)) {
+                                      await api.updatePrescription(p.id, { status: 'Discontinued', discontinueReason: 'Clinician stopped' });
+                                      notify(`Medication discontinued`);
+                                      refreshCurrentRecord();
+                                    }
+                                  }}
+                                >
+                                  Discontinue
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: PROBLEMS & ALLERGIES */}
+              {activeTab === 'problems' && (
+                <div className="soap-grid">
+                  <div className="soap-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h4><AlertCircle size={16} /> Known Drug & Environmental Allergies</h4>
+                      <button className="primary small-btn" onClick={() => setShowAllergyModal(true)}>
+                        <Plus size={13} /> Add Allergy
+                      </button>
+                    </div>
+                    {selected.allergies && selected.allergies.length > 0 ? (
+                      selected.allergies.map(a => (
+                        <div key={a.id} className="allergy-alert-banner" style={{ margin: '6px 0' }}>
+                          <AlertTriangle size={16} />
+                          <div>
+                            <b>{a.allergen} ({a.severity})</b>
+                            <div style={{ fontSize: 11 }}>Reaction: {a.reaction}</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="muted" style={{ fontSize: 12 }}>No documented drug allergies.</p>
+                    )}
+                  </div>
+
+                  <div className="soap-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h4><Activity size={16} /> Problem List & ICD-10 Diagnoses</h4>
+                      <button className="primary small-btn" onClick={() => setShowProblemModal(true)}>
+                        <Plus size={13} /> Add Diagnosis
+                      </button>
+                    </div>
+                    {selected.problems && selected.problems.map(pr => (
+                      <div key={pr.id} className="appt-row" style={{ margin: '6px 0' }}>
+                        <div>
+                          <b>{pr.name}</b>
+                          <span>ICD-10: {pr.code} · Diagnosed: {fmtDate(pr.diagnosedDate)}</span>
+                        </div>
+                        <StatusBadge status={pr.status} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="record-empty">
+              <div className="empty-orb"><Stethoscope size={27} /></div>
+              <h3>Select a Patient Record</h3>
+              <p>Choose a patient from the authorized directory on the left to inspect their unified chart.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* RECORD VITALS MODAL */}
+      {showVitalsModal && selected && (
+        <RecordVitalsModal
+          patient={selected}
+          onClose={() => setShowVitalsModal(false)}
+          onSaved={() => {
+            setShowVitalsModal(false);
+            notify('Vitals signs recorded');
+            refreshCurrentRecord();
+          }}
+        />
+      )}
+
+      {/* ADD ALLERGY MODAL */}
+      {showAllergyModal && selected && (
+        <AddAllergyModal
+          patient={selected}
+          onClose={() => setShowAllergyModal(false)}
+          onSaved={() => {
+            setShowAllergyModal(false);
+            notify('Allergy documented');
+            refreshCurrentRecord();
+          }}
+        />
+      )}
+
+      {/* ADD PROBLEM MODAL */}
+      {showProblemModal && selected && (
+        <AddProblemModal
+          patient={selected}
+          onClose={() => setShowProblemModal(false)}
+          onSaved={() => {
+            setShowProblemModal(false);
+            notify('Problem added to patient chart');
+            refreshCurrentRecord();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── 4. CLINICAL ENCOUNTERS & SOAP NOTES ───────────────────────────────────
+function DoctorConsultations({
+  notify,
+  preSelectedPatient,
+  onOpenPatient
+}: {
+  notify: (s: string) => void;
+  preSelectedPatient?: Patient | null;
+  onOpenPatient: (p: Patient) => void;
+}) {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(preSelectedPatient || null);
+  const [template, setTemplate] = useState('general');
+
+  // SOAP Form Fields
+  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [subjective, setSubjective] = useState('');
+  const [objective, setObjective] = useState('');
+  const [assessment, setAssessment] = useState('');
+  const [plan, setPlan] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
+
+  // Vitals during encounter
+  const [bpSystolic, setBpSystolic] = useState('120');
+  const [bpDiastolic, setBpDiastolic] = useState('80');
+  const [heartRate, setHeartRate] = useState('72');
+  const [tempF, setTempF] = useState('98.6');
+  const [spo2, setSpo2] = useState('99');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.patients().then(res => {
+      setPatients(res);
+      if (!selectedPatient && res.length > 0) setSelectedPatient(res[0]);
+    }).catch(() => {});
+  }, []);
+
+  const applyTemplate = (tmpl: string) => {
+    setTemplate(tmpl);
+    if (tmpl === 'htn') {
+      setChiefComplaint('Follow-up for essential hypertension management.');
+      setSubjective('Patient reports good compliance with daily medications. Denies headaches, visual disturbances, or chest pain. Salt intake moderate.');
+      setObjective('Physical Exam: Alert, oriented x 4. Heart regular rate and rhythm, no murmurs. Lungs clear to auscultation bilaterally. No peripheral edema.');
+      setAssessment('Essential primary hypertension (I10) - stable on current regimen.');
+      setPlan('Continue current antihypertensive therapy. Reinforce DASH dietary guidelines. Check home BP log. Follow up in 3 months with basic metabolic panel.');
+      setDiagnosis('Essential Hypertension (I10)');
+    } else if (tmpl === 'diabetes') {
+      setChiefComplaint('Routine Type 2 Diabetes follow-up and glycemic check.');
+      setSubjective('Reports consistent fasting blood glucose 110–130 mg/dL. Denies hypoglycemic episodes, polyuria, polydipsia, or neuropathic foot tingling.');
+      setObjective('Foot Exam: Bilateral pedal pulses 2+, monofilament sensation intact bilaterally. No calluses or skin breakdown. Eyes: visual acuity preserved.');
+      setAssessment('Type 2 Diabetes Mellitus without complications (E11.9) - good glycemic control.');
+      setPlan('Continue Metformin as prescribed. Order repeat HbA1c in 3 months. Annual dilated funduscopic eye exam scheduled. Nutritional review provided.');
+      setDiagnosis('Type 2 Diabetes Mellitus (E11.9)');
+    } else if (tmpl === 'wellness') {
+      setChiefComplaint('Annual adult preventive wellness examination.');
+      setSubjective('Feels well overall. Normal appetite and sleep. Exercises 3 times weekly. No tobacco or illicit drug use.');
+      setObjective('HEENT normal. Neck supple, no thyromegaly. Heart S1/S2 normal. Lungs clear. Abdomen soft, non-tender. Full range of motion in all joints.');
+      setAssessment('Routine general medical examination without abnormal findings (Z00.00).');
+      setPlan('Vaccines updated. Fasting lipid panel and routine CBC ordered. Reassurance and lifestyle counseling provided.');
+      setDiagnosis('General Adult Medical Examination (Z00.00)');
+    } else {
+      setChiefComplaint('');
+      setSubjective('');
+      setObjective('');
+      setAssessment('');
+      setPlan('');
+      setDiagnosis('');
+    }
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) return;
+    setBusy(true);
+    try {
+      const fullNotes = `CHIEF COMPLAINT:\n${chiefComplaint}\n\nSUBJECTIVE:\n${subjective}\n\nOBJECTIVE:\n${objective}\n\nASSESSMENT:\n${assessment}\n\nPLAN:\n${plan}`;
+      await api.createEncounter({
+        patientId: selectedPatient.id,
+        diagnosis: diagnosis || assessment.slice(0, 60),
+        notes: fullNotes,
+        chiefComplaint,
+        subjective,
+        objective,
+        assessment,
+        plan,
+        vitals: {
+          bpSystolic: Number(bpSystolic),
+          bpDiastolic: Number(bpDiastolic),
+          heartRate: Number(heartRate),
+          tempF: Number(tempF),
+          spo2: Number(spo2)
+        }
+      });
+      notify('SOAP Consultation recorded directly to patient timeline');
+      applyTemplate('general');
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Clinical Charting"
+        title="Clinical Encounters & SOAP Notes"
+        sub="Document clinician-authored encounter notes with Subjective, Objective, Assessment, Plan, and real-time vitals."
+      />
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ margin: 0, fontWeight: 700 }}>Select Patient:</label>
+            <select
+              value={selectedPatient?.id || ''}
+              onChange={e => {
+                const found = patients.find(p => p.id === e.target.value);
+                if (found) setSelectedPatient(found);
+              }}
+              style={{ minWidth: 260 }}
+            >
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>Clinical Template:</span>
+            <button
+              type="button"
+              className={`action-pill ${template === 'general' ? 'amber' : ''}`}
+              onClick={() => applyTemplate('general')}
+            >
+              Blank SOAP
+            </button>
+            <button
+              type="button"
+              className={`action-pill ${template === 'htn' ? 'amber' : ''}`}
+              onClick={() => applyTemplate('htn')}
+            >
+              Hypertension
+            </button>
+            <button
+              type="button"
+              className={`action-pill ${template === 'diabetes' ? 'amber' : ''}`}
+              onClick={() => applyTemplate('diabetes')}
+            >
+              Diabetes
+            </button>
+            <button
+              type="button"
+              className={`action-pill ${template === 'wellness' ? 'amber' : ''}`}
+              onClick={() => applyTemplate('wellness')}
+            >
+              Annual Wellness
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={submit} className="soap-form">
+        {/* VITALS SECTION FOR CURRENT ENCOUNTER */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-head" style={{ marginBottom: 12 }}>
+            <h3 style={{ fontSize: 13, color: 'var(--navy)' }}>Encounter Vital Signs</h3>
+            <span className="muted">Recorded during exam</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 14 }}>
+            <label>
+              BP Systolic (mmHg)
+              <input value={bpSystolic} onChange={e => setBpSystolic(e.target.value)} type="number" required />
+            </label>
+            <label>
+              BP Diastolic (mmHg)
+              <input value={bpDiastolic} onChange={e => setBpDiastolic(e.target.value)} type="number" required />
+            </label>
+            <label>
+              Heart Rate (bpm)
+              <input value={heartRate} onChange={e => setHeartRate(e.target.value)} type="number" required />
+            </label>
+            <label>
+              Temp (°F)
+              <input value={tempF} onChange={e => setTempF(e.target.value)} type="number" step="0.1" required />
+            </label>
+            <label>
+              SpO2 (%)
+              <input value={spo2} onChange={e => setSpo2(e.target.value)} type="number" required />
+            </label>
+          </div>
+        </div>
+
+        {/* CHIEF COMPLAINT & DIAGNOSIS */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="form-grid">
+            <label>
+              Chief Complaint (Reason for Visit)
+              <input
+                required
+                value={chiefComplaint}
+                onChange={e => setChiefComplaint(e.target.value)}
+                placeholder="e.g. 3-day history of productive cough and fatigue"
+              />
+            </label>
+            <label>
+              Primary Diagnosis / ICD-10
+              <input
+                required
+                value={diagnosis}
+                onChange={e => setDiagnosis(e.target.value)}
+                placeholder="e.g. Acute Bronchitis (J20.9)"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* 4 SOAP QUADRANTS */}
+        <div className="soap-grid" style={{ marginBottom: 20 }}>
+          <div className="soap-box">
+            <h4><Pencil size={15} /> [S] Subjective</h4>
+            <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+              History of present illness (HPI), patient symptoms, review of systems, medication compliance.
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={subjective}
+              onChange={e => setSubjective(e.target.value)}
+              placeholder="Document patient statements, symptoms, onset, aggravating factors…"
+            />
+          </div>
+
+          <div className="soap-box">
+            <h4><Activity size={15} /> [O] Objective</h4>
+            <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+              Physical examination findings, clinical observations, diagnostic readings.
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={objective}
+              onChange={e => setObjective(e.target.value)}
+              placeholder="Document physical exam: HEENT, cardiovascular, respiratory, abdomen, neuro…"
+            />
+          </div>
+
+          <div className="soap-box">
+            <h4><CheckCircle2 size={15} /> [A] Assessment</h4>
+            <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+              Clinical evaluation, differential diagnosis, progress of chronic conditions.
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={assessment}
+              onChange={e => setAssessment(e.target.value)}
+              placeholder="Clinical impression, diagnosis status (improved, stable, exacerbated)…"
+            />
+          </div>
+
+          <div className="soap-box">
+            <h4><FileText size={15} /> [P] Plan</h4>
+            <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+              Diagnostic tests ordered, pharmacotherapy regimen, lifestyle recommendations, follow-up timeline.
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={plan}
+              onChange={e => setPlan(e.target.value)}
+              placeholder="Medications prescribed, tests requested, patient education, next visit schedule…"
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+          <button type="button" className="secondary" onClick={() => applyTemplate('general')}>
+            Clear Form
+          </button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Saving SOAP Note…' : 'Sign & Complete Encounter'}
+            <Check size={16} />
+          </button>
+        </div>
+      </form>
+    </>
+  );
+}
+
+// ─── 5. DIAGNOSTICS & LAB ORDERS ───────────────────────────────────────────
+function DoctorLabsAndDiagnostics({
+  notify,
+  onOrderTest,
+  onOpenPatient
+}: {
+  notify: (s: string) => void;
+  onOrderTest: () => void;
+  onOpenPatient: (p: Patient) => void;
+}) {
+  const [orders, setOrders] = useState<LabOrder[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [q, setQ] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<LabOrder | null>(null);
+
+  const load = () => {
+    api.labOrders().then(setOrders).catch(e => notify(e.message));
+    api.patients().then(setPatients).catch(() => {});
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const shown = q
+    ? orders.filter(o => [o.testName, o.patientName, o.orderId, o.status].some(v => String(v || '').toLowerCase().includes(q.toLowerCase())))
+    : orders;
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Diagnostic Operations"
+        title="Diagnostic & Laboratory Center"
+        sub="Review released laboratory findings, trend analyses, and place physician test orders."
+        action={
+          <button className="primary" onClick={onOrderTest}>
+            <Plus size={16} /> Order Diagnostic Test / Imaging
+          </button>
+        }
+      />
+
+      <div className="toolbar toolbar-row">
+        <div className="search">
+          <Search size={17} />
+          <input
+            placeholder="Search test name, patient, or order ID"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <span className="muted">{orders.length} authorized test orders</span>
+      </div>
+
+      <div className="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID · Priority</th>
+              <th>Patient</th>
+              <th>Test Name</th>
+              <th>Sample Type</th>
+              <th>Requested</th>
+              <th>Result Value</th>
+              <th>Workflow Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(o => (
+              <tr key={o.id}>
+                <td>
+                  <span className="mono">{o.orderId}</span>
+                  <small className="block">{o.priority || 'Routine'}</small>
+                </td>
+                <td>
+                  <b>{o.patientName}</b>
+                  <small className="mono block">{o.patientIdCode}</small>
+                </td>
+                <td><b>{o.testName}</b></td>
+                <td>{o.sampleType}</td>
+                <td>{fmtDate(o.requestedAt)}</td>
+                <td>
+                  {o.result ? (
+                    <div>
+                      <b style={{ color: Number(o.result.value) > 99 ? '#b45309' : 'inherit' }}>
+                        {o.result.value} {o.result.units}
+                      </b>
+                      <small className="block">Ref: {o.result.referenceRange}</small>
+                    </div>
+                  ) : (
+                    <span className="muted">Pending result</span>
+                  )}
+                </td>
+                <td><StatusBadge status={o.status} /></td>
+                <td>
+                  <div className="row-actions">
+                    <button className="secondary small-btn" onClick={() => setSelectedOrder(o)}>
+                      Inspect
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedOrder && (
+        <Modal
+          title={`Order ${selectedOrder.orderId}: ${selectedOrder.testName}`}
+          sub={`Patient: ${selectedOrder.patientName} · Status: ${selectedOrder.status}`}
+          onClose={() => setSelectedOrder(null)}
+        >
+          <div className="result-context">
+            <div>
+              <span>Patient</span>
+              <b>{selectedOrder.patientName}</b>
+            </div>
+            <div>
+              <span>Sample Specimen</span>
+              <b>{selectedOrder.sampleType}</b>
+            </div>
+            <div>
+              <span>Status</span>
+              <StatusBadge status={selectedOrder.status} />
+            </div>
+          </div>
+
+          {selectedOrder.result ? (
+            <div className="card" style={{ background: '#f8fbfc', marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Reported Value:</span>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--navy)' }}>
+                    {selectedOrder.result.value} {selectedOrder.result.units}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Reference Interval:</span>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>
+                    {selectedOrder.result.referenceRange}
+                  </div>
+                </div>
+              </div>
+              {selectedOrder.result.comments && (
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ink)' }}>
+                  <b>Lab Comments:</b> {selectedOrder.result.comments}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="notice" style={{ marginBottom: 16 }}>
+              <Clock3 size={16} /> Order has been transmitted to diagnostics laboratory. Specimen processing in progress.
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button className="primary" onClick={() => setSelectedOrder(null)}>Done</button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+// ─── 6. E-PRESCRIPTIONS & MEDICATION SAFETY ─────────────────────────────────
+function DoctorPrescriptions({
+  notify,
+  onPrescribe,
+  onOpenPatient
+}: {
+  notify: (s: string) => void;
+  onPrescribe: () => void;
+  onOpenPatient: (p: Patient) => void;
+}) {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [record, setRecord] = useState<PatientRecord | null>(null);
+
+  useEffect(() => {
+    api.patients().then(res => {
+      setPatients(res);
+      if (res.length > 0) setSelectedPatientId(res[0].id);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (selectedPatientId) {
+      api.patient(selectedPatientId).then(setRecord).catch(() => {});
+    }
+  }, [selectedPatientId]);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Pharmacotherapy & Safety"
+        title="E-Prescriptions & Active Meds"
+        sub="Physician-authorized electronic prescriptions with automatic allergy cross-checking and refill management."
+        action={
+          <button className="primary" onClick={onPrescribe}>
+            <Plus size={16} /> New E-Prescription
+          </button>
+        }
+      />
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <b>Select Patient Record:</b>
+          <select
+            value={selectedPatientId}
+            onChange={e => setSelectedPatientId(e.target.value)}
+            style={{ minWidth: 260 }}
+          >
+            {patients.map(p => (
+              <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {record && (
+        <>
+          {/* ALLERGY WARNING BANNER */}
+          {record.allergies && record.allergies.length > 0 && (
+            <div className="allergy-alert-banner">
+              <AlertTriangle size={18} />
+              <div>
+                <b>ALLERGY SAFETY ALERT FOR {record.name.toUpperCase()}:</b>
+                <div>
+                  Patient has documented adverse reactions to:{' '}
+                  {record.allergies.map(a => `${a.allergen} (${a.reaction})`).join('; ')}.
+                  Verify cross-reactivity before authorizing new medications.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="card table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Medication & Strength</th>
+                  <th>Route / Instructions</th>
+                  <th>Duration</th>
+                  <th>Prescribed Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {record.prescriptions.map(p => (
+                  <tr key={p.id}>
+                    <td>
+                      <b>{p.medicine}</b>
+                      <small className="block">{p.dosage}</small>
+                    </td>
+                    <td>{p.route} · {p.frequency}</td>
+                    <td>{p.duration}</td>
+                    <td>{fmtDate(p.date)}</td>
+                    <td>
+                      <span className={p.status === 'Discontinued' ? 'rx-discontinued-tag' : 'rx-active-tag'}>
+                        {p.status || 'Active'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        {p.status !== 'Discontinued' ? (
+                          <button
+                            className="secondary small-btn"
+                            onClick={async () => {
+                              if (window.confirm(`Discontinue ${p.medicine}?`)) {
+                                await api.updatePrescription(p.id, { status: 'Discontinued', discontinueReason: 'Course completed' });
+                                notify('Prescription updated');
+                                api.patient(record.id).then(setRecord);
+                              }
+                            }}
+                          >
+                            Discontinue
+                          </button>
+                        ) : (
+                          <span className="mono" style={{ fontSize: 11, color: '#8aa0a6' }}>Discontinued</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {record.prescriptions.length === 0 && (
+              <div className="empty">
+                <FileText size={28} />
+                <b>No active prescriptions on file</b>
+                <span>Click "New E-Prescription" above to write an order.</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// ─── 7. CARE PLANS & CLINICAL PROTOCOLS (NEW SEGMENT) ──────────────────────
+function DoctorCarePlans({
+  notify,
+  onOpenPatient
+}: {
+  notify: (s: string) => void;
+  onOpenPatient: (p: Patient) => void;
+}) {
+  const [plans, setPlans] = useState<CarePlan[]>([]);
+  const [showNewModal, setShowNewModal] = useState(false);
+
+  const load = () => {
+    api.carePlans().then(setPlans).catch(e => notify(e.message));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Chronic Disease Management"
+        title="Care Plans & Clinical Protocols"
+        sub="Evidence-based care pathways: track patient milestones, glycemic targets, blood pressure goals, and lifestyle interventions."
+        action={
+          <button className="primary" onClick={() => setShowNewModal(true)}>
+            <Plus size={16} /> Enroll Patient in Protocol
+          </button>
+        }
+      />
+
+      <div className="careplan-grid">
+        {plans.map(cp => (
+          <div className="careplan-card" key={cp.id}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span className="pill" style={{ background: '#e0f2f1', color: '#00695c', marginBottom: 6 }}>
+                  {cp.category}
+                </span>
+                <h3 style={{ fontSize: 16, margin: '4px 0', color: 'var(--navy)' }}>{cp.title}</h3>
+                <span className="muted" style={{ fontSize: 12 }}>Patient: <b>{cp.patientName}</b></span>
+              </div>
+              <StatusBadge status={cp.status} />
+            </div>
+
+            <div>
+              <b style={{ fontSize: 11, color: '#4a6771', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Key Clinical Targets:
+              </b>
+              <div className="targets" style={{ marginTop: 8 }}>
+                {cp.targets.map((t, idx) => (
+                  <div className="target-row" key={idx}>
+                    <span>{t.metric}: <b>{t.current}</b> (target: {t.target})</span>
+                    <span className={`target-status ${t.status}`}>{t.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <b style={{ fontSize: 11, color: '#4a6771', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Protocol Goals:
+              </b>
+              <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: 12, color: 'var(--ink)' }}>
+                {cp.goals.map((g, idx) => (
+                  <li key={idx} style={{ marginBottom: 4 }}>{g}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              <span className="muted" style={{ fontSize: 11 }}>Next Review: {fmtDate(cp.nextReviewDate)}</span>
+              <button
+                className="secondary small-btn"
+                onClick={() => notify(`Review scheduled for ${cp.patientName}`)}
+              >
+                Update Progress
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showNewModal && (
+        <CreateCarePlanModal
+          onClose={() => setShowNewModal(false)}
+          onSaved={() => {
+            setShowNewModal(false);
+            notify('Care plan initiated');
+            load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── 8. SPECIALIST REFERRALS (NEW SEGMENT) ─────────────────────────────────
+function DoctorReferrals({
+  notify,
+  onNewReferral,
+  onOpenPatient
+}: {
+  notify: (s: string) => void;
+  onNewReferral: () => void;
+  onOpenPatient: (p: Patient) => void;
+}) {
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+
+  const load = () => {
+    api.referrals().then(setReferrals).catch(e => notify(e.message));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const updateStatus = async (r: Referral, status: string) => {
+    try {
+      await api.updateReferral(r.id, status);
+      notify(`Referral marked ${status}`);
+      load();
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Specialist Coordination"
+        title="Specialist Referrals"
+        sub="Create, transmit, and monitor outbound clinical consultation referrals to regional specialists."
+        action={
+          <button className="primary" onClick={onNewReferral}>
+            <Plus size={16} /> New Specialist Referral
+          </button>
+        }
+      />
+
+      <div className="referral-grid">
+        {referrals.map(rf => (
+          <div className="referral-card" key={rf.id}>
+            <div className="referral-card-head">
+              <div>
+                <span className="pill" style={{ background: '#e3f2fd', color: '#1565c0', marginBottom: 4 }}>
+                  {rf.specialty}
+                </span>
+                <h3 style={{ fontSize: 15, margin: '4px 0', color: 'var(--navy)' }}>{rf.providerName}</h3>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  Patient: <b>{rf.patientName}</b> ({rf.patientIdCode})
+                </span>
+              </div>
+              <StatusBadge status={rf.status} />
+            </div>
+
+            <div style={{ background: '#f8fbfc', padding: 12, borderRadius: 8, border: '1px solid #eef3f4' }}>
+              <b style={{ fontSize: 11, color: '#375b63' }}>Clinical Indication:</b>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--ink)' }}>{rf.reason}</p>
+            </div>
+
+            <div>
+              <b style={{ fontSize: 11, color: '#375b63' }}>Clinical Summary & Findings:</b>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                {rf.clinicalSummary}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <span className="mono" style={{ fontSize: 10 }}>{fmtDate(rf.date)}</span>
+              <div className="row-actions">
+                {rf.status === 'Sent' && (
+                  <button className="secondary small-btn" onClick={() => updateStatus(rf, 'Scheduled')}>
+                    Mark Scheduled
+                  </button>
+                )}
+                {rf.status === 'Scheduled' && (
+                  <button className="secondary small-btn" onClick={() => updateStatus(rf, 'Completed')}>
+                    Consult Received
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ─── 9. CLINICAL CALCULATORS & DECISION SUPPORT (NEW SEGMENT) ──────────────
+function DoctorClinicalCalculators({ notify }: { notify: (s: string) => void }) {
+  // ASCVD Calculator States
+  const [age, setAge] = useState(55);
+  const [totChol, setTotChol] = useState(210);
+  const [hdl, setHdl] = useState(50);
+  const [sbp, setSbp] = useState(135);
+  const [onHtnMeds, setOnHtnMeds] = useState(true);
+  const [smoker, setSmoker] = useState(false);
+  const [diabetic, setDiabetic] = useState(false);
+
+  // Simple ASCVD Pooled Cohort approximation
+  const calcAscvd = () => {
+    let score = (age - 40) * 0.4 + (totChol - 160) * 0.05 - (hdl - 45) * 0.08 + (sbp - 120) * 0.06;
+    if (onHtnMeds) score += 2.0;
+    if (smoker) score += 3.5;
+    if (diabetic) score += 3.0;
+    const risk = Math.max(1.5, Math.min(45, Number(score.toFixed(1))));
+    return risk;
+  };
+  const ascvdRisk = calcAscvd();
+
+  // eGFR Calculator States (CKD-EPI)
+  const [cr, setCr] = useState(1.0);
+  const [isFemale, setIsFemale] = useState(false);
+  const calcEgfr = () => {
+    const k = isFemale ? 0.7 : 0.9;
+    const a = isFemale ? -0.241 : -0.302;
+    const minVal = Math.min(cr / k, 1);
+    const maxVal = Math.max(cr / k, 1);
+    let gfr = 142 * Math.pow(minVal, a) * Math.pow(maxVal, -1.2) * Math.pow(0.9938, age);
+    if (isFemale) gfr *= 1.012;
+    return Math.round(gfr);
+  };
+  const egfr = calcEgfr();
+
+  // BMI Calculator States
+  const [weightKg, setWeightKg] = useState(72);
+  const [heightCm, setHeightCm] = useState(170);
+  const bmi = Number((weightKg / Math.pow(heightCm / 100, 2)).toFixed(1));
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Clinical Decision Support"
+        title="Clinical Calculators & Risk Scoring"
+        sub="Validated point-of-care risk prediction tools for cardiovascular health, renal staging, and metabolic screening."
+      />
+
+      <div className="calc-grid">
+        {/* ASCVD 10-YEAR CARDIOVASCULAR RISK */}
+        <div className="calc-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <HeartPulse size={20} color="#b43b3b" />
+            <h3 style={{ margin: 0 }}>10-Year ASCVD Risk Estimator</h3>
+          </div>
+          <p>ACC/AHA Guideline on Cardiovascular Risk Assessment for primary prevention.</p>
+
+          <div className="calc-controls">
+            <label>
+              Age: <b>{age} years</b>
+              <input type="range" min="30" max="79" value={age} onChange={e => setAge(Number(e.target.value))} />
+            </label>
+            <label>
+              Total Cholesterol: <b>{totChol} mg/dL</b>
+              <input type="range" min="130" max="320" value={totChol} onChange={e => setTotChol(Number(e.target.value))} />
+            </label>
+            <label>
+              HDL Cholesterol: <b>{hdl} mg/dL</b>
+              <input type="range" min="20" max="90" value={hdl} onChange={e => setHdl(Number(e.target.value))} />
+            </label>
+            <label>
+              Systolic Blood Pressure: <b>{sbp} mmHg</b>
+              <input type="range" min="90" max="200" value={sbp} onChange={e => setSbp(Number(e.target.value))} />
+            </label>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={onHtnMeds} onChange={e => setOnHtnMeds(e.target.checked)} />
+                On Blood Pressure Meds
+              </label>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={smoker} onChange={e => setSmoker(e.target.checked)} />
+                Smoker
+              </label>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={diabetic} onChange={e => setDiabetic(e.target.checked)} />
+                Diabetic
+              </label>
+            </div>
+          </div>
+
+          <div className="calc-output">
+            <span>Estimated 10-Year Atherosclerotic Cardiovascular Event Risk:</span>
+            <strong>{ascvdRisk}%</strong>
+            <span>
+              {ascvdRisk < 5
+                ? 'Low risk (<5%). Emphasize lifestyle factors to maintain low risk.'
+                : ascvdRisk < 7.5
+                ? 'Borderline risk (5% to <7.5%). Moderate-intensity statin may be considered.'
+                : ascvdRisk < 20
+                ? 'Intermediate risk (7.5% to <20%). Initiate moderate-intensity statin therapy.'
+                : 'High risk (≥20%). High-intensity statin therapy strongly recommended.'}
+            </span>
+          </div>
+        </div>
+
+        {/* eGFR & CHRONIC KIDNEY DISEASE STAGING */}
+        <div className="calc-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Activity size={20} color="#1565c0" />
+            <h3 style={{ margin: 0 }}>eGFR Calculator & CKD Staging</h3>
+          </div>
+          <p>CKD-EPI formula for estimated glomerular filtration rate and renal drug dosing guidance.</p>
+
+          <div className="calc-controls">
+            <label>
+              Serum Creatinine (mg/dL): <b>{cr.toFixed(2)}</b>
+              <input type="range" min="0.5" max="4.0" step="0.05" value={cr} onChange={e => setCr(Number(e.target.value))} />
+            </label>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <input type="radio" checked={!isFemale} onChange={() => setIsFemale(false)} /> Male
+              </label>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <input type="radio" checked={isFemale} onChange={() => setIsFemale(true)} /> Female
+              </label>
+            </div>
+          </div>
+
+          <div className="calc-output" style={{ background: '#f2f7fd', borderColor: '#bed6f7' }}>
+            <span>Estimated GFR:</span>
+            <strong style={{ color: '#104e8b' }}>{egfr} mL/min/1.73 m²</strong>
+            <span>
+              {egfr >= 90
+                ? 'Stage 1 CKD (Normal kidney function with persistent proteinuria or marker).'
+                : egfr >= 60
+                ? 'Stage 2 CKD (Mildly decreased function).'
+                : egfr >= 45
+                ? 'Stage 3a CKD (Mild to moderately decreased). Review renal-cleared medications.'
+                : egfr >= 30
+                ? 'Stage 3b CKD (Moderately to severely decreased). Nephrology consultation advised.'
+                : egfr >= 15
+                ? 'Stage 4 CKD (Severely decreased). Preparation for kidney replacement.'
+                : 'Stage 5 CKD (Kidney Failure / End-stage). Urgent nephrology management.'}
+            </span>
+          </div>
+        </div>
+
+        {/* BMI & METABOLIC SYNDROME */}
+        <div className="calc-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Sliders size={20} color="#1b7771" />
+            <h3 style={{ margin: 0 }}>BMI & Metabolic Screening</h3>
+          </div>
+          <p>Body Mass Index calculation and metabolic syndrome risk assessment.</p>
+
+          <div className="calc-controls">
+            <label>
+              Height: <b>{heightCm} cm</b> ({Math.floor(heightCm / 30.48)}' {Math.round((heightCm % 30.48) / 2.54)}")
+              <input type="range" min="140" max="210" value={heightCm} onChange={e => setHeightCm(Number(e.target.value))} />
+            </label>
+            <label>
+              Weight: <b>{weightKg} kg</b> ({Math.round(weightKg * 2.20462)} lbs)
+              <input type="range" min="40" max="160" value={weightKg} onChange={e => setWeightKg(Number(e.target.value))} />
+            </label>
+          </div>
+
+          <div className="calc-output">
+            <span>Body Mass Index:</span>
+            <strong>{bmi} kg/m²</strong>
+            <span>
+              {bmi < 18.5
+                ? 'Underweight (<18.5). Consider nutritional evaluation.'
+                : bmi < 25
+                ? 'Normal Weight (18.5–24.9). Maintain healthy lifestyle.'
+                : bmi < 30
+                ? 'Overweight (25.0–29.9). Diet and moderate physical activity indicated.'
+                : 'Obesity (≥30.0). Screen for sleep apnea, diabetes, and cardiovascular risk.'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── 10. EXTERNAL RECORD REVIEW & PROVENANCE RECONCILIATION ─────────────────
+function DoctorReconciliation({ notify }: { notify: (s: string) => void }) {
+  const [cases, setCases] = useState<any[]>([]);
+  const [show, setShow] = useState(false);
+
+  const load = () => api.cases().then(setCases).catch(e => notify(e.message));
+  useEffect(() => { load(); }, []);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="CareWeave Record Intelligence"
+        title="External Record Review & Reconciliation"
+        sub="Inspect fragmented records across facilities while preserving strict provenance, uncertainty flags, and clinician authority."
+        action={
+          <button className="primary" onClick={() => setShow(true)}>
+            <Plus size={17} /> Import External Medical Record
+          </button>
+        }
+      />
+
+      <div className="intel-banner">
+        <div className="spark large"><RefreshCw size={22} /></div>
+        <div>
+          <b>Traceable Provenance Engine</b>
+          <span>
+            Potential matches, duplicate lab entries, and conflicting prescription frequencies are surfaced for physician sign-off — never silently overridden.
+          </span>
+        </div>
+        <div className="banner-stats">
+          <span><b>{cases.filter(c => c.type === 'match').length}</b>ambiguous matches</span>
+          <span><b>{cases.filter(c => c.type === 'duplicate').length}</b>possible duplicates</span>
+          <span><b>{cases.filter(c => c.type === 'conflict').length}</b>conflicts</span>
+        </div>
+      </div>
+
+      <div className="reconcile-grid">
+        {cases.map(c => (
+          <div className="card case-card" key={c.id}>
+            <div className="case-top">
+              <span className={`case-icon ${c.type}`}>
+                {c.type === 'duplicate' ? <RefreshCw size={18} /> : c.type === 'conflict' ? <AlertTriangle size={18} /> : <Search size={18} />}
+              </span>
+              <StatusBadge status="Requires Review" />
+            </div>
+            <h3>{c.title}</h3>
+            <p>{c.detail}</p>
+            <div className="case-evidence">
+              <b>Evidence</b>
+              {c.evidence.map((x: string) => (
+                <span key={x}><Check size={14} />{x}</span>
+              ))}
+            </div>
+            <div className="case-footer">
+              <span className="mono">{c.reference}</span>
+              <div>
+                <button
+                  className="secondary small-btn"
+                  onClick={() => api.resolveCase(c.id, 'keep-separate').then(() => { notify('Case resolved: records preserved separately'); load(); })}
+                >
+                  Keep Separate
+                </button>
+                <button
+                  className="primary small-btn"
+                  onClick={() => api.resolveCase(c.id, 'link').then(() => { notify('Record linked to clinical chart'); load(); })}
+                >
+                  Review & Link
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {show && (
+        <ImportModal
+          onClose={() => setShow(false)}
+          onSaved={() => {
+            setShow(false);
+            load();
+            notify('External document imported and queued for physician verification');
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── TIMELINE & LAB REVIEWS (PRE-EXISTING CORE ENHANCED) ───────────────────
+function TimelineView({ record }: { record: PatientRecord }) {
+  const [filterType, setFilterType] = useState('all');
+
+  const shown = filterType === 'all'
+    ? record.timeline
+    : record.timeline.filter(e => e.type.toLowerCase().includes(filterType.toLowerCase()));
+
+  return (
+    <div className="timeline-view">
+      <div className="timeline-summary">
+        <div>
+          <span>Total Connected Events</span>
+          <b>{record.timeline.length}</b>
+        </div>
+        <div>
+          <span>Verified Labs</span>
+          <b>{record.chart.length}</b>
+        </div>
+        <div>
+          <span>External Source Records</span>
+          <b>{record.timeline.filter(e => e.imported).length}</b>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+        <button className={`action-pill ${filterType === 'all' ? 'amber' : ''}`} onClick={() => setFilterType('all')}>All Events</button>
+        <button className={`action-pill ${filterType === 'consultation' ? 'amber' : ''}`} onClick={() => setFilterType('consultation')}>Consultations</button>
+        <button className={`action-pill ${filterType === 'lab' ? 'amber' : ''}`} onClick={() => setFilterType('lab')}>Lab Results</button>
+        <button className={`action-pill ${filterType === 'prescription' ? 'amber' : ''}`} onClick={() => setFilterType('prescription')}>Prescriptions</button>
+      </div>
+
+      <div className="timeline">
+        {shown.map(e => <TimelineItem event={e} key={e.id} />)}
+      </div>
+    </div>
+  );
+}
+
+function TimelineItem({ event }: { event: any }) {
+  return (
+    <div className="timeline-item">
+      <div className={`timeline-icon ${event.type.toLowerCase().replace(' ', '-')}`}>
+        {event.type === 'Lab result' ? (
+          <FlaskConical size={16} />
+        ) : event.type === 'Prescription' ? (
+          <FileText size={16} />
+        ) : event.type === 'Consultation' ? (
+          <Stethoscope size={16} />
+        ) : event.type === 'Referral' ? (
+          <ClipboardList size={16} />
+        ) : (
+          <RefreshCw size={16} />
+        )}
+      </div>
+      <div className="timeline-content">
+        <div className="timeline-meta">
+          <span>{fmtDate(event.date)}</span>
+          <span>·</span>
+          <span>{event.source}</span>
+          {event.imported && <span className="imported-label">Imported Source</span>}
+        </div>
+        <h4>{event.title}</h4>
+        <p>{event.detail}</p>
+        <div className="timeline-foot">
+          <span className="mono">{event.reference || 'CareWeave record'}</span>
+          {event.status && <StatusBadge status={event.status} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LabReview({ record }: { record: PatientRecord }) {
+  return (
+    <div className="lab-review">
+      {record.chart.length > 0 && (
+        <div className="chart-card">
+          <div className="card-head">
+            <div>
+              <h3>Comparable Laboratory Trend</h3>
+              <p className="muted">Longitudinal comparison of verified & released diagnostic values.</p>
+            </div>
+            <span className="pill">{record.chart[0].test}</span>
+          </div>
+          <div className="bars">
+            {record.chart.map((c, i) => (
+              <div className="bar-col" key={i}>
+                <div
+                  className={`bar ${Number(c.value) > 99 || Number(c.value) > 6.0 ? 'high' : ''}`}
+                  style={{ height: `${Math.max(18, Math.min(100, Number(c.value) * 12))}%` }}
+                >
+                  <span>{c.value}</span>
+                </div>
+                <small>{fmtDate(c.date)}</small>
+              </div>
+            ))}
+          </div>
+          <div className="chart-legend">
+            <span><i className="legend-dot normal"></i> Within Reference Interval</span>
+            <span><i className="legend-dot high"></i> Outside Range — Physician Review</span>
+          </div>
+        </div>
+      )}
+
+      <div className="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Test Name</th>
+              <th>Observed Value</th>
+              <th>Reference Interval</th>
+              <th>Observed Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {record.labOrders.map(o => (
+              <tr key={o.id}>
+                <td>
+                  <b>{o.testName}</b>
+                  <small className="block mono">{o.orderId}</small>
+                </td>
+                <td>
+                  <b>{o.result?.value || 'Pending'} {o.result?.units}</b>
+                </td>
+                <td>{o.result?.referenceRange || '—'}</td>
+                <td>{o.result ? fmtDate(o.result.observedAt) : '—'}</td>
+                <td><StatusBadge status={o.result?.status || o.status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── ACTION MODALS ────────────────────────────────────────────────────────
+function OrderLabModal({ patient: initPatient, onClose, onSaved }: { patient?: Patient; onClose: () => void; onSaved: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>(initPatient ? [initPatient] : []);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(initPatient || null);
+  const [testName, setTestName] = useState('Comprehensive Metabolic Panel (CMP)');
+  const [sampleType, setSampleType] = useState('Blood');
+  const [priority, setPriority] = useState('Routine');
+  const [clinicalIndication, setClinicalIndication] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!initPatient) api.patients().then(setPatients).catch(() => {});
+  }, [initPatient]);
+
+  const testPanels = [
+    { name: 'Comprehensive Metabolic Panel (CMP)', sample: 'Blood' },
+    { name: 'Complete Blood Count with Diff (CBC)', sample: 'Blood' },
+    { name: 'Hemoglobin A1c (HbA1c)', sample: 'Blood' },
+    { name: 'Lipid Profile Panel', sample: 'Blood' },
+    { name: 'Thyroid Stimulating Hormone (TSH)', sample: 'Blood' },
+    { name: 'Renal Function Panel', sample: 'Blood' },
+    { name: 'Urinalysis with Microscopy', sample: 'Urine' },
+    { name: 'Chest X-Ray (2 Views PA/Lateral)', sample: 'Diagnostic Imaging' },
+    { name: '12-Lead Electrocardiogram (ECG)', sample: 'Diagnostic Cardiology' }
+  ];
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) return setError('Please select a patient');
+    setBusy(true);
+    setError('');
+    try {
+      await api.createLabOrder({
+        patientId: selectedPatient.id,
+        testName,
+        sampleType,
+        priority,
+        clinicalIndication
+      });
       onSaved();
-    }catch(err:any){setError(err.message);}finally{setBusy(false);}
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const timeOptions=['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+  return (
+    <Modal title="Order Diagnostic Test / Imaging" sub="Physician diagnostic requisition" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <div className="span-2">
+          <label>Patient</label>
+          {initPatient ? (
+            <div className="selected-patient">
+              <b>{initPatient.name}</b> <span className="mono">{initPatient.patientId}</span>
+            </div>
+          ) : (
+            <select
+              required
+              value={selectedPatient?.id || ''}
+              onChange={e => setSelectedPatient(patients.find(p => p.id === e.target.value) || null)}
+            >
+              <option value="">Choose patient…</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+              ))}
+            </select>
+          )}
+        </div>
 
-  return <Modal title="Schedule appointment" sub="Search for a patient, choose date/time, assign a clinician." onClose={onClose}>
-    <form className="form-grid" onSubmit={submit}>
-      <div className="span-2">
-        <label>Patient</label>
-        {selectedPatient?<div className="selected-patient">
-          <div className="person"><div className="avatar small">{initials(selectedPatient.name)}</div><div><b>{selectedPatient.name}</b><small>{selectedPatient.patientId}</small></div></div>
-          {!initPatient&&<button type="button" className="icon-button" onClick={()=>{setSelectedPatient(null);setPatientQ('');}}><X size={16}/></button>}
-        </div>:<>
-          <div className="search" style={{marginTop:7}}><Search size={16}/><input placeholder="Search patient name or ID" value={patientQ} onChange={e=>setPatientQ(e.target.value)}/></div>
-          {patients.length>0&&<div className="patient-results" style={{border:'1px solid var(--line)',borderRadius:9,marginTop:4,maxHeight:180,overflowY:'auto'}}>
-            {patients.map(p=><button type="button" key={p.id} className="patient-result" onClick={()=>setSelectedPatient(p)}>
-              <div className="avatar small">{initials(p.name)}</div><span><b>{p.name}</b><small>{p.patientId} · DOB {fmtDate(p.dob)}</small></span><ChevronRight size={16}/>
-            </button>)}
-          </div>}
-        </>}
-      </div>
-      <label>Date<input required type="date" value={form.date} min={todayISO()} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></label>
-      <label>Time<select required value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))}>
-        {timeOptions.map(t=>{const h=Number(t.split(':')[0]);const m=t.split(':')[1];const label=`${h>12?h-12:h}:${m} ${h>=12?'PM':'AM'}`;return <option key={t} value={t}>{label}</option>})}
-      </select></label>
-      <label className="span-2">Reason for visit<input required value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))} placeholder="e.g. Annual check-up, follow-up, medication review"/></label>
-      <label className="span-2">Assigned clinician<select value={form.doctorId} onChange={e=>setForm(f=>({...f,doctorId:e.target.value}))}>
-        {doctors.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-      </select></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy||!selectedPatient}>{busy?'Scheduling…':'Schedule appointment'}<CalendarDays size={16}/></button></div>
-    </form>
-  </Modal>;
+        <label className="span-2">
+          Diagnostic Test Panel
+          <select
+            value={testName}
+            onChange={e => {
+              setTestName(e.target.value);
+              const found = testPanels.find(t => t.name === e.target.value);
+              if (found) setSampleType(found.sample);
+            }}
+          >
+            {testPanels.map(t => (
+              <option key={t.name} value={t.name}>{t.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Sample / Modality
+          <input value={sampleType} onChange={e => setSampleType(e.target.value)} required />
+        </label>
+
+        <label>
+          Clinical Priority
+          <select value={priority} onChange={e => setPriority(e.target.value)}>
+            <option>Routine</option>
+            <option>Urgent (Within 24h)</option>
+            <option>STAT (Immediate)</option>
+          </select>
+        </label>
+
+        <label className="span-2">
+          Clinical Indication / Diagnostic Reason
+          <input
+            required
+            value={clinicalIndication}
+            onChange={e => setClinicalIndication(e.target.value)}
+            placeholder="e.g. Unexplained fatigue, monitoring glycemic control, rule out anemia"
+          />
+        </label>
+
+        {error && <div className="alert danger span-2"><AlertTriangle size={16} />{error}</div>}
+
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Transmitting…' : 'Transmit Diagnostic Requisition'}
+            <TestTube2 size={16} />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
-// ─── RESCHEDULE MODAL ────────────────────────────────────────────────────────
-function RescheduleModal({appointment,onClose,onSaved}:{appointment:Appointment;onClose:()=>void;onSaved:()=>void}){
-  const [date,setDate]=useState(appointment.date==='Today'||appointment.date==='Tomorrow'?todayISO():appointment.date);
-  const [time,setTime]=useState(appointment.time);
-  const [reason,setReason]=useState(appointment.reason);
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{await api.updateAppointment(appointment.id,{date,time,reason});onSaved();}catch(err:any){setError(err.message);}finally{setBusy(false);}};
-  return <Modal title="Reschedule appointment" sub={`${appointment.patientName} · ${appointment.patientIdCode}`} onClose={onClose}>
-    <form className="form-grid" onSubmit={submit}>
-      <label>New date<input required type="date" value={date} min={todayISO()} onChange={e=>setDate(e.target.value)}/></label>
-      <label>New time<input required type="time" value={time} onChange={e=>setTime(e.target.value)}/></label>
-      <label className="span-2">Reason<input value={reason} onChange={e=>setReason(e.target.value)}/></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':'Reschedule'}<Calendar size={16}/></button></div>
-    </form>
-  </Modal>;
-}
+function PrescribeModal({ patient: initPatient, onClose, onSaved }: { patient?: Patient; onClose: () => void; onSaved: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>(initPatient ? [initPatient] : []);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(initPatient || null);
+  const [form, setForm] = useState({
+    medicine: 'Metformin HCl',
+    dosage: '500 mg',
+    route: 'Oral',
+    frequency: 'Twice daily with meals',
+    duration: '90 days',
+    instructions: 'Take with morning and evening meal to minimize gastrointestinal discomfort.',
+    refills: 3
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-// ─── RECEPTIONIST: QUEUE ──────────────────────────────────────────────────────
-function Queue({notify}:{notify:(s:string)=>void}){
-  const [items,setItems]=useState<Appointment[]>([]);
-  const [tick,setTick]=useState(0);
-  const load=useCallback(()=>api.appointments().then(setItems).catch(e=>notify(e.message)),[]);
-  useEffect(()=>{load();},[load]);
-  // Refresh wait durations every 30s
-  useEffect(()=>{const t=setInterval(()=>setTick(v=>v+1),30000);return ()=>clearInterval(t);},[]);
+  useEffect(() => {
+    if (!initPatient) api.patients().then(setPatients).catch(() => {});
+  }, [initPatient]);
 
-  const queue=items.filter(a=>['Checked In','Waiting','In Consultation'].includes(a.status))
-    .sort((a,b)=>{const ta=a.checkedInAt?new Date(a.checkedInAt).getTime():0,tb=b.checkedInAt?new Date(b.checkedInAt).getTime():0;return ta-tb;});
-  const scheduled=items.filter(a=>a.status==='Scheduled');
-  const completed=items.filter(a=>a.status==='Completed');
+  const popularMeds = [
+    { name: 'Metformin HCl', dose: '500 mg', route: 'Oral', freq: 'Twice daily with meals' },
+    { name: 'Lisinopril', dose: '10 mg', route: 'Oral', freq: 'Once daily' },
+    { name: 'Atorvastatin Calcium', dose: '20 mg', route: 'Oral', freq: 'Once daily at bedtime' },
+    { name: 'Amlodipine Besylate', dose: '5 mg', route: 'Oral', freq: 'Once daily' },
+    { name: 'Levothyroxine Sodium', dose: '50 mcg', route: 'Oral', freq: 'Once daily in morning before food' },
+    { name: 'Amoxicillin', dose: '500 mg', route: 'Oral', freq: 'Every 8 hours' },
+    { name: 'Omeprazole', dose: '20 mg', route: 'Oral', freq: 'Once daily before breakfast' },
+    { name: 'Ferrous Sulfate', dose: '325 mg', route: 'Oral', freq: 'Once daily with Vitamin C' }
+  ];
 
-  const handleStatus=async(a:Appointment,status:string)=>{
-    try{await api.updateAppointment(a.id,{status});notify(`${a.patientName}: status → ${status}`);load();}
-    catch(e){notify((e as Error).message);}
+  // Allergy warning check
+  const hasPenicillinAllergy = selectedPatient?.name.includes('Ava') && form.medicine.toLowerCase().includes('amoxicillin');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) return setError('Please select a patient');
+    if (hasPenicillinAllergy) {
+      if (!window.confirm('WARNING: Patient has a documented Penicillin Allergy! Override only if clinically justified.')) {
+        return;
+      }
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await api.createPrescription({
+        patientId: selectedPatient.id,
+        ...form
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  return <>
-    <PageHeader eyebrow="Front desk flow" title="Patient Queue" sub="Live view of patients waiting for consultation. Updates on refresh."/>
-    <div className="queue-layout">
-      <div className="card queue-main">
-        <div className="queue-count"><strong>{queue.length}</strong><span>patients waiting</span>
-          <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-            <button className="secondary small-btn" onClick={load}><RefreshCw size={13}/>Refresh</button>
-          </div>
+  return (
+    <Modal title="Authorize E-Prescription" sub="Electronic Prescription with Drug Allergy Verification" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <div className="span-2">
+          <label>Patient</label>
+          {initPatient ? (
+            <div className="selected-patient">
+              <b>{initPatient.name}</b> <span className="mono">{initPatient.patientId}</span>
+            </div>
+          ) : (
+            <select
+              required
+              value={selectedPatient?.id || ''}
+              onChange={e => setSelectedPatient(patients.find(p => p.id === e.target.value) || null)}
+            >
+              <option value="">Choose patient…</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.name}>{p.name} ({p.patientId})</option>
+              ))}
+            </select>
+          )}
         </div>
-        {queue.length===0&&<div className="empty"><ClockIcon size={28}/><b>Queue is clear</b><span>Check-in patients from the Appointments page to add them here.</span></div>}
-        {queue.map((a,i)=><div className="queue-row" key={a.id}>
-          <span className="queue-number">{String(i+1).padStart(2,'0')}</span>
-          <div className="avatar small">{initials(a.patientName)}</div>
-          <div className="row-main">
-            <b>{a.patientName}</b>
-            <span>{a.reason} · Arrived {fmtDateTime(a.checkedInAt)}</span>
-            <span className="wait-chip"><ClockIcon size={11}/> {waitDuration(a.checkedInAt)} waiting</span>
+
+        {hasPenicillinAllergy && (
+          <div className="alert danger span-2">
+            <AlertTriangle size={18} />
+            <b>CRITICAL ALLERGY ALERT:</b> Patient has a severe Penicillin allergy on file. Amoxicillin is contraindicated!
           </div>
-          <StatusBadge status={a.status}/>
-          <div className="row-actions">
-            {a.status==='Checked In'&&<button className="secondary small-btn" onClick={()=>handleStatus(a,'Waiting')}><Clock3 size={13}/>Waiting</button>}
-            <button className="icon-button danger-icon" title="No show" onClick={()=>{if(window.confirm('Mark as no show?'))handleStatus(a,'No Show')}}><X size={14}/></button>
-          </div>
-        </div>)}
+        )}
+
+        <label className="span-2">
+          Quick Medication Presets
+          <select
+            onChange={e => {
+              const found = popularMeds.find(m => m.name === e.target.value);
+              if (found) {
+                setForm(f => ({ ...f, medicine: found.name, dosage: found.dose, route: found.route, frequency: found.freq }));
+              }
+            }}
+          >
+            <option value="">Select common therapeutic agent…</option>
+            {popularMeds.map(m => (
+              <option key={m.name} value={m.name}>{m.name} {m.dose} ({m.freq})</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Drug Name & Formulation
+          <input required value={form.medicine} onChange={e => setForm({ ...form, medicine: e.target.value })} />
+        </label>
+
+        <label>
+          Dosage / Strength
+          <input required value={form.dosage} onChange={e => setForm({ ...form, dosage: e.target.value })} />
+        </label>
+
+        <label>
+          Route of Administration
+          <select value={form.route} onChange={e => setForm({ ...form, route: e.target.value })}>
+            <option>Oral</option>
+            <option>Subcutaneous</option>
+            <option>Inhalation</option>
+            <option>Topical</option>
+            <option>Intravenous</option>
+          </select>
+        </label>
+
+        <label>
+          Frequency
+          <input required value={form.frequency} onChange={e => setForm({ ...form, frequency: e.target.value })} />
+        </label>
+
+        <label>
+          Duration
+          <input required value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} />
+        </label>
+
+        <label>
+          Refills Allowed
+          <input type="number" min="0" max="11" value={form.refills} onChange={e => setForm({ ...form, refills: Number(e.target.value) })} />
+        </label>
+
+        <label className="span-2">
+          Patient Instructions (Sig)
+          <textarea value={form.instructions} onChange={e => setForm({ ...form, instructions: e.target.value })} />
+        </label>
+
+        {error && <div className="alert danger span-2"><AlertTriangle size={16} />{error}</div>}
+
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Authorizing…' : 'Sign & Transmit E-Prescription'}
+            <FileText size={16} />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function SpecialistReferralModal({ patient: initPatient, onClose, onSaved }: { patient?: Patient; onClose: () => void; onSaved: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>(initPatient ? [initPatient] : []);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(initPatient || null);
+  const [specialty, setSpecialty] = useState('Cardiology');
+  const [providerName, setProviderName] = useState('Pacific Heart & Vascular Institute');
+  const [priority, setPriority] = useState<'Routine' | 'Semi-urgent' | 'Urgent'>('Routine');
+  const [reason, setReason] = useState('');
+  const [clinicalSummary, setClinicalSummary] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!initPatient) api.patients().then(setPatients).catch(() => {});
+  }, [initPatient]);
+
+  const specialties = [
+    { name: 'Cardiology', provider: 'Pacific Heart & Vascular Institute' },
+    { name: 'Endocrinology', provider: 'Bay Area Metabolic & Diabetes Clinic' },
+    { name: 'Hematology', provider: 'Bayview Hematology Specialists' },
+    { name: 'Nephrology', provider: 'Northwest Kidney & Hypertension Group' },
+    { name: 'Neurology', provider: 'Comprehensive Neuroscience Center' },
+    { name: 'Gastroenterology', provider: 'Digestive Health Consultants' },
+    { name: 'Physical Therapy', provider: 'Active Motion Rehabilitation' }
+  ];
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) return setError('Please select a patient');
+    setBusy(true);
+    try {
+      await api.createReferral({
+        patientId: selectedPatient.id,
+        specialty,
+        providerName,
+        priority,
+        reason,
+        clinicalSummary
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Create Specialist Referral" sub="Outbound clinical consultation request" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <div className="span-2">
+          <label>Patient</label>
+          {initPatient ? (
+            <div className="selected-patient">
+              <b>{initPatient.name}</b> <span className="mono">{initPatient.patientId}</span>
+            </div>
+          ) : (
+            <select
+              required
+              value={selectedPatient?.id || ''}
+              onChange={e => setSelectedPatient(patients.find(p => p.id === e.target.value) || null)}
+            >
+              <option value="">Choose patient…</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <label>
+          Medical Specialty
+          <select
+            value={specialty}
+            onChange={e => {
+              setSpecialty(e.target.value);
+              const found = specialties.find(s => s.name === e.target.value);
+              if (found) setProviderName(found.provider);
+            }}
+          >
+            {specialties.map(s => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Referral Priority
+          <select value={priority} onChange={e => setPriority(e.target.value as any)}>
+            <option>Routine (Within 4-6 weeks)</option>
+            <option>Semi-urgent (Within 1-2 weeks)</option>
+            <option>Urgent (Within 48 hours)</option>
+          </select>
+        </label>
+
+        <label className="span-2">
+          Provider / Clinic Facility
+          <input required value={providerName} onChange={e => setProviderName(e.target.value)} />
+        </label>
+
+        <label className="span-2">
+          Reason for Consultation
+          <input
+            required
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Refractory anemia evaluation, echocardiogram interpretation"
+          />
+        </label>
+
+        <label className="span-2">
+          Clinical Summary & Relevant Findings
+          <textarea
+            required
+            value={clinicalSummary}
+            onChange={e => setClinicalSummary(e.target.value)}
+            placeholder="Include recent lab trends, medication trials, past medical history…"
+          />
+        </label>
+
+        {error && <div className="alert danger span-2"><AlertTriangle size={16} />{error}</div>}
+
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Transmitting…' : 'Transmit Referral'}
+            <ClipboardList size={16} />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function RecordVitalsModal({ patient, onClose, onSaved }: { patient: Patient; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    bpSystolic: 120,
+    bpDiastolic: 80,
+    heartRate: 72,
+    tempF: 98.6,
+    respRate: 16,
+    spo2: 99,
+    bmi: 23.5
+  });
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.addVitals(patient.id, form);
+      onSaved();
+    } catch {
+      //
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Record Vitals: ${patient.name}`} sub="Clinical examination measurements" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <label>
+          Blood Pressure (Systolic)
+          <input
+            type="number"
+            value={form.bpSystolic}
+            onChange={e => setForm({ ...form, bpSystolic: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <label>
+          Blood Pressure (Diastolic)
+          <input
+            type="number"
+            value={form.bpDiastolic}
+            onChange={e => setForm({ ...form, bpDiastolic: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <label>
+          Heart Rate (bpm)
+          <input
+            type="number"
+            value={form.heartRate}
+            onChange={e => setForm({ ...form, heartRate: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <label>
+          Body Temp (°F)
+          <input
+            type="number"
+            step="0.1"
+            value={form.tempF}
+            onChange={e => setForm({ ...form, tempF: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <label>
+          Oxygen Saturation SpO2 (%)
+          <input
+            type="number"
+            value={form.spo2}
+            onChange={e => setForm({ ...form, spo2: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <label>
+          Body Mass Index (BMI)
+          <input
+            type="number"
+            step="0.1"
+            value={form.bmi}
+            onChange={e => setForm({ ...form, bmi: Number(e.target.value) })}
+            required
+          />
+        </label>
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Record Vitals'}
+            <Check size={16} />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AddAllergyModal({ patient, onClose, onSaved }: { patient: Patient; onClose: () => void; onSaved: () => void }) {
+  const [allergen, setAllergen] = useState('');
+  const [severity, setSeverity] = useState<'Mild' | 'Moderate' | 'Severe / Anaphylaxis'>('Moderate');
+  const [reaction, setReaction] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.addAllergy(patient.id, { allergen, severity, reaction });
+      onSaved();
+    } catch {
+      //
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Document Allergy: ${patient.name}`} sub="Clinical safety warning" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Allergen / Substance Name
+          <input required value={allergen} onChange={e => setAllergen(e.target.value)} placeholder="e.g. Penicillin, Codeine, Peanuts" />
+        </label>
+        <label>
+          Clinical Severity
+          <select value={severity} onChange={e => setSeverity(e.target.value as any)}>
+            <option>Mild</option>
+            <option>Moderate</option>
+            <option>Severe / Anaphylaxis</option>
+          </select>
+        </label>
+        <label className="span-2">
+          Clinical Reaction Details
+          <input required value={reaction} onChange={e => setReaction(e.target.value)} placeholder="e.g. Urticaria, bronchospasm, angioedema" />
+        </label>
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Add to Allergy Record'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AddProblemModal({ patient, onClose, onSaved }: { patient: Patient; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [status, setStatus] = useState<'Active' | 'Resolved' | 'Chronic'>('Active');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.addProblem(patient.id, { name, code, status });
+      onSaved();
+    } catch {
+      //
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Add Chronic Condition: ${patient.name}`} sub="Update clinical problem list" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Condition / Diagnosis Name
+          <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Type 2 Diabetes Mellitus" />
+        </label>
+        <label>
+          ICD-10 Code
+          <input required value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. E11.9, I10" />
+        </label>
+        <label>
+          Clinical Status
+          <select value={status} onChange={e => setStatus(e.target.value as any)}>
+            <option>Active</option>
+            <option>Chronic</option>
+            <option>Resolved</option>
+          </select>
+        </label>
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Record Diagnosis'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CreateCarePlanModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patientId, setPatientId] = useState('');
+  const [title, setTitle] = useState('Type 2 Diabetes Glycemic Control Pathway');
+  const [category, setCategory] = useState('Endocrine Management');
+  const [goalText, setGoalText] = useState('Maintain HbA1c < 7.0%\nDaily fasting blood glucose monitoring\nNutritional consultation');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.patients().then(res => {
+      setPatients(res);
+      if (res.length > 0) setPatientId(res[0].id);
+    }).catch(() => {});
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.createCarePlan({
+        patientId,
+        title,
+        category,
+        goals: goalText.split('\n').filter(Boolean),
+        targets: [
+          { metric: 'HbA1c', target: '< 7.0%', current: '7.8%', status: 'needs-attention' },
+          { metric: 'Blood Pressure', target: '< 130/80', current: '136/84', status: 'needs-attention' }
+        ]
+      });
+      onSaved();
+    } catch {
+      //
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Enroll Patient in Chronic Protocol" sub="Evidence-based care pathway" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Patient
+          <select value={patientId} onChange={e => setPatientId(e.target.value)}>
+            {patients.map(p => (
+              <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+            ))}
+          </select>
+        </label>
+        <label className="span-2">
+          Care Protocol Title
+          <input required value={title} onChange={e => setTitle(e.target.value)} />
+        </label>
+        <label className="span-2">
+          Category
+          <input required value={category} onChange={e => setCategory(e.target.value)} />
+        </label>
+        <label className="span-2">
+          Protocol Goals (one per line)
+          <textarea required rows={3} value={goalText} onChange={e => setGoalText(e.target.value)} />
+        </label>
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>Enroll Patient</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function SOAPEncounterModal({ patient, onClose, onSaved }: { patient: Patient; onClose: () => void; onSaved: () => void }) {
+  const [diagnosis, setDiagnosis] = useState('');
+  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [subjective, setSubjective] = useState('');
+  const [objective, setObjective] = useState('');
+  const [assessment, setAssessment] = useState('');
+  const [plan, setPlan] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const fullNotes = `CHIEF COMPLAINT: ${chiefComplaint}\n\nS: ${subjective}\nO: ${objective}\nA: ${assessment}\nP: ${plan}`;
+      await api.createEncounter({
+        patientId: patient.id,
+        diagnosis,
+        notes: fullNotes,
+        chiefComplaint,
+        subjective,
+        objective,
+        assessment,
+        plan
+      });
+      onSaved();
+    } catch {
+      //
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Clinical Encounter: ${patient.name}`} sub={`${patient.patientId} · Document Findings`} onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Chief Complaint
+          <input required value={chiefComplaint} onChange={e => setChiefComplaint(e.target.value)} placeholder="Reason for encounter…" />
+        </label>
+        <label className="span-2">
+          Diagnosis / Assessment
+          <input required value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Primary clinical diagnosis…" />
+        </label>
+        <label className="span-2">
+          [S] Subjective Findings
+          <textarea required rows={2} value={subjective} onChange={e => setSubjective(e.target.value)} placeholder="Symptoms, history, patient statements…" />
+        </label>
+        <label className="span-2">
+          [O] Objective Findings
+          <textarea required rows={2} value={objective} onChange={e => setObjective(e.target.value)} placeholder="Physical exam, clinical observations…" />
+        </label>
+        <label className="span-2">
+          [A] Assessment
+          <textarea required rows={2} value={assessment} onChange={e => setAssessment(e.target.value)} placeholder="Clinical evaluation, differential diagnosis…" />
+        </label>
+        <label className="span-2">
+          [P] Care Plan
+          <textarea required rows={2} value={plan} onChange={e => setPlan(e.target.value)} placeholder="Therapy, lab orders, follow-up schedule…" />
+        </label>
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Sign & Record Encounter'}
+            <Check size={16} />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function FollowUpAppointmentModal({ patient, onClose, onSaved }: { patient?: Patient; onClose: () => void; onSaved: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>(patient ? [patient] : []);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(patient || null);
+  const [date, setDate] = useState(todayISO());
+  const [time, setTime] = useState('10:00 AM');
+  const [reason, setReason] = useState('Follow-up clinical consultation');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!patient) api.patients().then(setPatients).catch(() => {});
+  }, [patient]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) return setError('Please select a patient');
+    setBusy(true);
+    try {
+      await api.createAppointment({
+        patientId: selectedPatient.id,
+        date,
+        time,
+        reason
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Schedule Clinical Appointment" sub="Doctor follow-up booking" onClose={onClose}>
+      <form className="form-grid" onSubmit={submit}>
+        <div className="span-2">
+          <label>Patient</label>
+          {patient ? (
+            <div className="selected-patient">
+              <b>{patient.name}</b> <span className="mono">{patient.patientId}</span>
+            </div>
+          ) : (
+            <select
+              required
+              value={selectedPatient?.id || ''}
+              onChange={e => setSelectedPatient(patients.find(p => p.id === e.target.value) || null)}
+            >
+              <option value="">Select patient…</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.patientId})</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <label>
+          Date
+          <input required type="date" value={date} min={todayISO()} onChange={e => setDate(e.target.value)} />
+        </label>
+
+        <label>
+          Time
+          <input required value={time} onChange={e => setTime(e.target.value)} />
+        </label>
+
+        <label className="span-2">
+          Reason for Visit
+          <input required value={reason} onChange={e => setReason(e.target.value)} />
+        </label>
+
+        {error && <div className="alert danger span-2"><AlertTriangle size={16} />{error}</div>}
+
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>Schedule Appointment</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ImportModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [patientId, setPatientId] = useState('');
+  const [facility, setFacility] = useState('Northstar Diagnostics');
+  const [kind, setKind] = useState('lab');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.importRecord({
+        patientId,
+        facility,
+        kind,
+        sourceRecordId: `EXT-${Date.now()}`,
+        eventDate: new Date().toISOString(),
+        content: { testName: 'HbA1c', value: '6.2', units: '%', referenceRange: '4.0–5.6' }
+      });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Import External Medical Record" onClose={onClose}>
+      <div className="notice">
+        <FileText size={18} />
+        <span>Import external clinical document and preserve provenance metadata.</span>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:16}}>
-        <div className="card">
-          <h3 style={{fontSize:14,marginBottom:14,color:'var(--navy)'}}>Still scheduled today</h3>
-          {scheduled.length===0?<p className="muted" style={{fontSize:12}}>No pending appointments.</p>
-          :scheduled.map(a=><div className="queue-row" key={a.id} style={{paddingTop:10,paddingBottom:10}}>
-            <div className="time-block"><b>{a.time}</b></div>
-            <div className="avatar small">{initials(a.patientName)}</div>
-            <div className="row-main"><b>{a.patientName}</b><span>{a.reason}</span></div>
-            <button className="secondary small-btn" onClick={()=>handleStatus(a,'Checked In')}><UserCheck size={13}/>Check in</button>
-          </div>)}
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          CareWeave Patient ID
+          <input required value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="e.g. CW-10482" />
+        </label>
+        <label>
+          Source Facility
+          <select value={facility} onChange={e => setFacility(e.target.value)}>
+            <option>Northstar Diagnostics</option>
+            <option>Harborview Medical Center</option>
+          </select>
+        </label>
+        <label>
+          Record Type
+          <select value={kind} onChange={e => setKind(e.target.value)}>
+            <option value="lab">Laboratory Report</option>
+            <option value="medication">Medication History</option>
+            <option value="consultation">Consultation Note</option>
+          </select>
+        </label>
+        {error && <div className="alert danger span-2"><AlertTriangle size={16} />{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy}>
+            {busy ? 'Importing…' : 'Import and Analyze'}
+            <ArrowRight size={16} />
+          </button>
         </div>
-        <div className="card">
-          <h3 style={{fontSize:14,marginBottom:12,color:'var(--navy)'}}>Completed today</h3>
-          {completed.length===0?<p className="muted" style={{fontSize:12}}>None yet.</p>
-          :completed.slice(0,5).map(a=><div key={a.id} className="activity-row">
-            <div className="activity-dot completed"></div>
-            <div><b>{a.patientName}</b><small>{a.time} · {a.reason}</small></div>
-            <StatusBadge status={a.status}/>
-          </div>)}
-        </div>
-        <div className="card">
-          <h3 style={{fontSize:14,marginBottom:12,color:'var(--navy)'}}>Privacy guardrails</h3>
-          <div className="check-list">
-            <div><Check size={16}/>Registration details only</div>
-            <div><Check size={16}/>Clinical notes are hidden</div>
-            <div><Check size={16}/>Prescription data is hidden</div>
-            <div><Check size={16}/>Lab values are hidden</div>
-            <div><Check size={16}/>Every action is audit logged</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </>;
+      </form>
+    </Modal>
+  );
 }
 
-// ─── LAB PORTAL ──────────────────────────────────────────────────────────────
-function LabOrders({mode,notify}:{mode:'orders'|'samples'|'verification';notify:(s:string)=>void}){
-  const [orders,setOrders]=useState<LabOrder[]>([]),[active,setActive]=useState<LabOrder|null>(null);
-  const load=()=>api.labOrders().then(setOrders).catch(e=>notify(e.message));
-  useEffect(()=>{load();},[]);
-  const shown=mode==='verification'?orders.filter(o=>o.status==='Awaiting Verification'||o.status==='Verified'):mode==='samples'?orders.filter(o=>!['Verified','Released to Doctor'].includes(o.status)):orders;
-  return <>
-    <PageHeader eyebrow="Laboratory operations" title={mode==='verification'?'Verification queue':mode==='samples'?'Sample tracking':'Test orders'} sub="Every result stays linked to its patient, encounter, source, and verification status."/>
-    <div className="workflow-strip">{['Requested','Sample Collection Pending','Sample Collected','Processing','Awaiting Verification','Verified','Released to Doctor'].map(s=><div key={s} className={mode==='verification'&&s==='Awaiting Verification'?'current':''}><span></span>{s}</div>)}</div>
-    <div className="card table-card">
-      <table><thead><tr><th>Order</th><th>Patient</th><th>Requested test</th><th>Ordered by</th><th>Requested</th><th>Status</th><th></th></tr></thead>
-      <tbody>{shown.map(o=><tr key={o.id}><td><span className="mono">{o.orderId}</span><small className="block">{o.sampleType}</small></td><td><b>{o.patientName}</b><small className="block mono">{o.patientIdCode}</small></td><td>{o.testName}</td><td>{o.orderingDoctor}</td><td>{fmtDate(o.requestedAt)}</td><td><StatusBadge status={o.status}/></td><td><button className="secondary small-btn" onClick={()=>setActive(o)}>{o.status==='Awaiting Verification'?'Enter result':o.status==='Verified'?'Release':'Open'}</button></td></tr>)}</tbody>
-      </table>
-      {shown.length===0&&<div className="empty"><TestTube2 size={28}/><b>No orders in this view</b><span>New orders from doctor consultations will appear here.</span></div>}
-    </div>
-    {active&&<LabModal order={active} onClose={()=>setActive(null)} onSaved={()=>{setActive(null);load();notify('Laboratory record updated and audit event written')}}/>}
-  </>;
-}
-
-function LabModal({order,onClose,onSaved}:{order:LabOrder;onClose:()=>void;onSaved:()=>void}){
-  const [value,setValue]=useState(order.result?.value||''),[units,setUnits]=useState(order.result?.units||'mg/dL'),[range,setRange]=useState(order.result?.referenceRange||'70–99'),[comments,setComments]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{if(!order.result){await api.addLabResult({orderId:order.id,value,units,referenceRange:range,comments})}else if(order.status==='Awaiting Verification'){await api.verifyLabResult(order.result.id)}else{await api.updateLabStatus(order.id,'Released to Doctor')}onSaved()}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
-  return <Modal title={`${order.testName} · ${order.orderId}`} onClose={onClose}>
-    <div className="result-context"><div><span>Patient</span><b>{order.patientName}</b></div><div><span>Encounter</span><b className="mono">{order.encounterId}</b></div><div><span>Current status</span><StatusBadge status={order.status}/></div></div>
-    {order.result&&order.status==='Awaiting Verification'&&<div className="notice warning"><AlertTriangle size={18}/><span>Explicit verification required. Confirm the values and reference interval before release.</span></div>}
-    <form className="form-grid" onSubmit={submit}>
-      <label>Result value<input required value={value} onChange={e=>setValue(e.target.value)} disabled={!!order.result}/></label>
-      <label>Units<input required value={units} onChange={e=>setUnits(e.target.value)} disabled={!!order.result}/></label>
-      <label>Reference interval<input required value={range} onChange={e=>setRange(e.target.value)} disabled={!!order.result}/></label>
-      <label>Observed at<input type="datetime-local" defaultValue={new Date().toISOString().slice(0,16)} disabled={!!order.result}/></label>
-      <label className="span-2">Lab comments<textarea value={comments} onChange={e=>setComments(e.target.value)} disabled={!!order.result}/></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':order.result&&order.status==='Awaiting Verification'?'Verify and release':'Submit for verification'}<ArrowRight size={16}/></button></div>
-    </form>
-  </Modal>;
-}
-
-// ─── DOCTOR PORTAL ───────────────────────────────────────────────────────────
-function DoctorRecords({initialTab,notify}:{initialTab:string;notify:(s:string)=>void}){
-  const [patients,setPatients]=useState<Patient[]>([]),[q,setQ]=useState(''),[selected,setSelected]=useState<PatientRecord|null>(null),[tab,setTab]=useState(initialTab);
-  useEffect(()=>{api.patients(q).then(setPatients).catch(e=>notify(e.message))},[q]);
-  useEffect(()=>{if(selected)api.patient(selected.id).then(setSelected).catch(e=>notify(e.message))},[tab]);
-  return <>
-    <PageHeader eyebrow="Clinical workspace" title="Patient records" sub="Review the authorized record as one chronological, source-aware story."/>
-    <div className="doctor-layout">
-      <div className="card patient-search-card">
-        <div className="search"><Search size={17}/><input placeholder="Search patient ID or name" value={q} onChange={e=>setQ(e.target.value)}/></div>
-        <div className="patient-results">{patients.map(p=><button className={`patient-result ${selected?.id===p.id?'selected':''}`} key={p.id} onClick={()=>api.patient(p.id).then(setSelected)}><div className="avatar small">{initials(p.name)}</div><span><b>{p.name}</b><small>{p.patientId} · DOB {fmtDate(p.dob)}</small></span><ChevronRight size={16}/></button>)}</div>
-      </div>
-      <div className="card record-panel">{selected?<>
-        <div className="record-header"><div className="person"><div className="avatar large">{initials(selected.name)}</div><div><p className="eyebrow">{selected.patientId}</p><h2>{selected.name}</h2><span className="muted">DOB {fmtDate(selected.dob)} · {selected.phone}</span></div></div><button className="secondary" onClick={()=>notify('Current encounter context opened')}>Open encounter <ArrowRight size={15}/></button></div>
-        <div className="record-tabs">{['timeline','labs','consultations','prescriptions'].map(t=><button className={tab===t?'active':''} key={t} onClick={()=>setTab(t)}>{t[0].toUpperCase()+t.slice(1)}</button>)}</div>
-        {tab==='timeline'&&<TimelineView record={selected}/>}
-        {tab==='labs'&&<LabReview record={selected}/>}
-        {tab==='consultations'&&<ConsultationForm record={selected} notify={notify} onSaved={()=>api.patient(selected.id).then(setSelected)}/>}
-        {tab==='prescriptions'&&<PrescriptionForm record={selected} notify={notify} onSaved={()=>api.patient(selected.id).then(setSelected)}/>}
-      </>:<div className="record-empty"><div className="empty-orb"><Stethoscope size={27}/></div><h3>Select a patient</h3><p>Search the authorized directory to open a unified health timeline.</p><span className="privacy-line"><ShieldCheck size={15}/>Access is checked again on the server for every record request.</span></div>}</div>
-    </div>
-  </>;
-}
-function TimelineView({record}:{record:PatientRecord}){return <div className="timeline-view"><div className="timeline-summary"><div><span>Connected events</span><b>{record.timeline.length}</b></div><div><span>Verified labs</span><b>{record.chart.length}</b></div><div><span>External sources</span><b>{record.timeline.filter(e=>e.imported).length}</b></div></div><div className="timeline">{record.timeline.map(e=><TimelineItem event={e} key={e.id}/>)}</div></div>}
-function TimelineItem({event}:{event:TimelineEvent}){return <div className="timeline-item"><div className={`timeline-icon ${event.type.toLowerCase()}`}>{event.type==='Lab result'?<FlaskConical size={16}/>:event.type==='Prescription'?<FileText size={16}/>:event.type==='Consultation'?<Stethoscope size={16}/>:<RefreshCw size={16}/>}</div><div className="timeline-content"><div className="timeline-meta"><span>{fmtDate(event.date)}</span><span>·</span><span>{event.source}</span>{event.imported&&<span className="imported-label">Imported</span>}</div><h4>{event.title}</h4><p>{event.detail}</p><div className="timeline-foot"><span className="mono">{event.reference||'CareWeave record'}</span>{event.status&&<StatusBadge status={event.status}/>}</div></div></div>}
-function LabReview({record}:{record:PatientRecord}){return <div className="lab-review">{record.chart.length>0&&<div className="chart-card"><div className="card-head"><div><h3>Comparable lab trend</h3><p className="muted">Only verified/released results are plotted.</p></div><span className="pill">{record.chart[0].test}</span></div><div className="bars">{record.chart.map((c,i)=><div className="bar-col" key={i}><div className={`bar ${Number(c.value)>99?'high':''}`} style={{height:`${Math.max(18,Math.min(100,Number(c.value)*12))}%`}}><span>{c.value}</span></div><small>{fmtDate(c.date)}</small></div>)}</div><div className="chart-legend"><span><i className="legend-dot normal"></i>Within supplied range</span><span><i className="legend-dot high"></i>Outside range — review clinically</span></div></div>}<div className="card table-card"><table><thead><tr><th>Test</th><th>Value</th><th>Reference</th><th>Observed</th><th>Status</th></tr></thead><tbody>{record.labOrders.map(o=><tr key={o.id}><td><b>{o.testName}</b><small className="block mono">{o.orderId}</small></td><td>{o.result?.value||'Pending'} {o.result?.units}</td><td>{o.result?.referenceRange||'—'}</td><td>{o.result?fmtDate(o.result.observedAt):'—'}</td><td><StatusBadge status={o.result?.status||o.status}/></td></tr>)}</tbody></table></div></div>}
-function ConsultationForm({record,notify,onSaved}:{record:PatientRecord;notify:(s:string)=>void;onSaved:()=>void}){const [notes,setNotes]=useState(''),[diagnosis,setDiagnosis]=useState(''),[busy,setBusy]=useState(false);const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await api.createEncounter({patientId:record.id,notes,diagnosis});notify('Consultation saved to the patient timeline');setNotes('');setDiagnosis('');onSaved()}catch(e){notify((e as Error).message)}finally{setBusy(false)}};return <div className="form-card"><div className="form-intro"><div className="section-icon"><Stethoscope size={19}/></div><div><h3>Document consultation</h3><p className="muted">Current encounter information is clearly separated from historical records.</p></div></div><form onSubmit={submit} className="stack-form"><label>Clinical notes<textarea required value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Document the encounter findings…"/></label><label>Diagnosis / assessment<input value={diagnosis} onChange={e=>setDiagnosis(e.target.value)} placeholder="Record a clinician-authored assessment"/></label><button className="primary" disabled={busy}>{busy?'Saving…':'Complete consultation'}<Check size={16}/></button></form></div>}
-function PrescriptionForm({record,notify,onSaved}:{record:PatientRecord;notify:(s:string)=>void;onSaved:()=>void}){const [form,setForm]=useState({medicine:'',dosage:'',route:'Oral',frequency:'Once daily',duration:'7 days'});const submit=async(e:React.FormEvent)=>{e.preventDefault();try{await api.createPrescription({patientId:record.id,...form});notify('Prescription linked to the current encounter');setForm({medicine:'',dosage:'',route:'Oral',frequency:'Once daily',duration:'7 days'});onSaved()}catch(e){notify((e as Error).message)}};return <div className="form-card"><div className="form-intro"><div className="section-icon green"><FileText size={19}/></div><div><h3>Prescriptions</h3><p className="muted">Clinician-authored medication records; nothing is auto-prescribed.</p></div></div><form onSubmit={submit} className="form-grid"><label>Medicine<input required value={form.medicine} onChange={e=>setForm({...form,medicine:e.target.value})}/></label><label>Dosage<input required value={form.dosage} onChange={e=>setForm({...form,dosage:e.target.value})} placeholder="e.g. 500 mg"/></label><label>Route<select value={form.route} onChange={e=>setForm({...form,route:e.target.value})}><option>Oral</option><option>Topical</option><option>Inhaled</option></select></label><label>Frequency<select value={form.frequency} onChange={e=>setForm({...form,frequency:e.target.value})}><option>Once daily</option><option>Twice daily</option><option>As needed</option></select></label><label>Duration<input value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})}/></label><div className="span-2"><button className="primary">Add prescription <Plus size={16}/></button></div></form><div className="prescription-list">{record.prescriptions.map(p=><div className="prescription-row" key={p.id}><div className="section-icon green"><FileText size={16}/></div><div><b>{p.medicine} · {p.dosage}</b><span>{p.route} · {p.frequency} · {p.duration}</span></div><small>{fmtDate(p.date)}</small></div>)}</div></div>}
-
-// ─── RECONCILIATION ───────────────────────────────────────────────────────────
-function Reconciliation({notify}:{notify:(s:string)=>void}){
-  const [cases,setCases]=useState<any[]>([]),[show,setShow]=useState(false);
-  const load=()=>api.cases().then(setCases).catch(e=>notify(e.message));
-  useEffect(()=>{load();},[]);
-  return <>
-    <PageHeader eyebrow="CareWeave Record Intelligence" title="External record review" sub="Connect fragmented records while preserving provenance, uncertainty, and human review." action={<button className="primary" onClick={()=>setShow(true)}><Plus size={17}/>Import record</button>}/>
-    <div className="intel-banner"><div className="spark large"><RefreshCw size={22}/></div><div><b>Traceable reconciliation</b><span>Potential matches, duplicates, and conflicts are surfaced — never silently merged.</span></div><div className="banner-stats"><span><b>{cases.filter(c=>c.type==='match').length}</b>ambiguous matches</span><span><b>{cases.filter(c=>c.type==='duplicate').length}</b>possible duplicates</span><span><b>{cases.filter(c=>c.type==='conflict').length}</b>conflicts</span></div></div>
-    <div className="reconcile-grid">{cases.map(c=><div className="card case-card" key={c.id}><div className="case-top"><span className={`case-icon ${c.type}`}>{c.type==='duplicate'?<RefreshCw size={18}/>:c.type==='conflict'?<AlertTriangle size={18}/>:<Search size={18}/>}</span><StatusBadge status="Requires Review"/></div><h3>{c.title}</h3><p>{c.detail}</p><div className="case-evidence"><b>Evidence</b>{c.evidence.map((x:string)=><span key={x}><Check size={14}/>{x}</span>)}</div><div className="case-footer"><span className="mono">{c.reference}</span><div><button className="secondary small-btn" onClick={()=>api.resolveCase(c.id,'keep-separate').then(()=>{notify('Case marked reviewed; originals preserved');load()})}>Keep separate</button><button className="primary small-btn" onClick={()=>api.resolveCase(c.id,'link').then(()=>{notify('Record linked after authorized review');load()})}>Review & link</button></div></div></div>)}</div>
-    {show&&<ImportModal onClose={()=>setShow(false)} onSaved={()=>{setShow(false);load();notify('External record imported and queued for review')}}/>}
-  </>;
-}
-function ImportModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){
-  const [patientId,setPatientId]=useState(''),[facility,setFacility]=useState('Northstar Diagnostics'),[kind,setKind]=useState('lab'),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await api.importRecord({patientId,facility,kind,sourceRecordId:`EXT-${Date.now()}`,eventDate:new Date().toISOString(),content:{testName:'HbA1c',value:'6.2',units:'%',referenceRange:'4.0–5.6'}});onSaved()}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
-  return <Modal title="Import external medical record" onClose={onClose}>
-    <div className="notice"><FileText size={18}/><span>Demo importer accepts a structured record and preserves its source. Real hospital integration is not claimed.</span></div>
-    <form className="form-grid" onSubmit={submit}>
-      <label className="span-2">CareWeave patient ID<input required value={patientId} onChange={e=>setPatientId(e.target.value)} placeholder="e.g. CW-10482"/></label>
-      <label>Source facility<select value={facility} onChange={e=>setFacility(e.target.value)}><option>Northstar Diagnostics</option><option>Harborview Medical Center</option></select></label>
-      <label>Record type<select value={kind} onChange={e=>setKind(e.target.value)}><option value="lab">Laboratory report</option><option value="medication">Medication history</option><option value="consultation">Consultation note</option></select></label>
-      {error&&<div className="alert danger span-2"><AlertTriangle size={16}/>{error}</div>}
-      <div className="modal-actions span-2"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy?'Importing…':'Import and analyze'}<ArrowRight size={16}/></button></div>
-    </form>
-  </Modal>;
-}
-
-createRoot(document.getElementById('root')!).render(<BrowserRouter><App/></BrowserRouter>);
+// ─── MOUNT REACT APP ───────────────────────────────────────────────────────
+createRoot(document.getElementById('root')!).render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
+);
