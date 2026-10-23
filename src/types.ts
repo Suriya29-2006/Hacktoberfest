@@ -1,0 +1,13 @@
+export type Role='receptionist'|'lab'|'doctor';
+export type Status='Requested'|'Sample Collection Pending'|'Sample Collected'|'Processing'|'Awaiting Verification'|'Verified'|'Released to Doctor';
+export type AppointmentStatus='Scheduled'|'Checked In'|'Waiting'|'In Consultation'|'Completed'|'Cancelled'|'No Show';
+export type User={id:string;name:string;email:string;role:Role;facility:string};
+export type Patient={id:string;patientId:string;name:string;dob:string;phone:string;email?:string;emergencyContact?:string;createdAt:string;risk?:string};
+export type Doctor={id:string;name:string;facility:string};
+export type Appointment={id:string;patientId:string;patientName:string;patientIdCode?:string;doctorId?:string;doctorName?:string;date:string;time:string;reason:string;status:string;checkedInAt?:string;rescheduledAt?:string};
+export type LabResult={id:string;orderId:string;value:string;units:string;referenceRange:string;observedAt:string;comments?:string;verifiedBy?:string;verifiedAt?:string;releasedAt?:string;status:string};
+export type LabOrder={id:string;orderId:string;patientId:string;patientName:string;patientIdCode?:string;encounterId:string;testName:string;orderingDoctor:string;requestedAt:string;sampleType:string;status:Status;result?:LabResult};
+export type TimelineEvent={id:string;type:string;date:string;title:string;detail:string;source:string;status?:string;reference?:string;imported?:boolean;meta?:any};
+export type PatientRecord=Patient&{timeline:TimelineEvent[];chart:{date:string;value:number;units:string;range:string;test:string;status:string}[];appointments:Appointment[];labOrders:LabOrder[];prescriptions:any[]};
+export type AdminPatientRecord=Patient&{appointments:Appointment[]};
+export type Dashboard={stats:Record<string,number>;appointments:Appointment[];labOrders:LabOrder[];cases:any[];recent:any[]};
