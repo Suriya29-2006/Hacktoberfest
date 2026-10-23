@@ -100,7 +100,6 @@ Sign in at `http://localhost:5173/login`:
 | :--- | :--- | :--- | :--- |
 | **Front Desk** | `reception@careweave.test` | `12345678` | Patient check-in, queue triage, walk-in appointments |
 | **Lab Technician** | `lab@careweave.test` | `12345678` | Upload a report scan, specimen collection, result entry |
-| **Pathologist** | `pathologist@careweave.test` | `12345678` | Verify & release pending results, audit amendments |
 | **Doctor** | `doctor@careweave.test` | `demo123` | Chart review, SOAP notes, e-prescribing, lab orders |
 
 > **Tip for Judges**: Once logged in as Front Desk or Doctor, click **"Load sample scenario"** to instantly generate synthetic patient *Priya Raman* with complete medical history, lab orders, and active prescriptions.
